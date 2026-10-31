@@ -12,6 +12,7 @@ from PIL import Image
 from . import APP, VERSION
 from . import theme as T
 from . import tools
+from . import updater
 from .icons import icon
 from .jobs import Job, JobQueue
 from .util import (is_youtube, load_settings, looks_like_url, open_path, resource_path, save_settings,
@@ -65,6 +66,9 @@ class App(ctk.CTk):
         self.bind("<Configure>", self._on_configure)
         self.check_tools()
         self.after(500, self._check_clipboard)
+        self.upd = {"state": None, "info": None, "progress": 0.0, "error": None}
+        updater.cleanup_leftovers()
+        self.after(4000, lambda: self.check_update(silent=True))
         self._tick()
 
     # ================================================================ Fenster
@@ -103,6 +107,11 @@ class App(ctk.CTk):
         if getattr(self, "_geom", None) and self.state() == "normal":
             self.cfg["geometry"] = self._geom
         self.save()
+        if self.upd.get("state") == "ready":  # fertiges Update beim Schliessen einspielen
+            try:
+                updater.install(self.upd["path"], restart=False)
+            except Exception:
+                pass
         self.destroy()
 
     # ================================================================ Seitenleiste
@@ -124,7 +133,7 @@ class App(ctk.CTk):
         tf = ctk.CTkFrame(logo, fg_color="transparent")
         tf.pack(side="left")
         label(tf, APP, 19, T.TEXT, "bold", kind="display").pack(anchor="w")
-        label(tf, f"Version {VERSION}", 11, T.TEXT_3).pack(anchor="w")
+        label(tf, f"Version {updater.current_version()}", 11, T.TEXT_3).pack(anchor="w")
 
         nav = ctk.CTkFrame(sb, fg_color="transparent")
         nav.grid(row=1, column=0, sticky="new", padx=12)
@@ -139,8 +148,17 @@ class App(ctk.CTk):
             self.nav_btns[key] = (b, ic)
         self.q_badge = badge(self.nav_btns["queue"][0], "", fg=T.ACCENT, color="#ffffff")
 
+        # Update-Hinweis (nur sichtbar, wenn es eine neue Version gibt)
+        self.upd_btn = ctk.CTkButton(sb, text="", height=40, corner_radius=T.RADIUS_SM, fg_color=T.ACCENT,
+                                     hover_color=T.ACCENT_HOVER, text_color="#ffffff", font=T.F(13, "bold"),
+                                     image=icon("download", 16, "#ffffff"), compound="left",
+                                     command=self.update_clicked)
+        self.upd_bar = ctk.CTkProgressBar(sb, height=4, corner_radius=2, fg_color=T.SURFACE_3,
+                                          progress_color=T.ACCENT)
+        self._sb = sb
+
         foot = ctk.CTkFrame(sb, fg_color=T.SURFACE, corner_radius=T.RADIUS, border_width=1, border_color=T.BORDER)
-        foot.grid(row=3, column=0, sticky="ew", padx=14, pady=16)
+        foot.grid(row=5, column=0, sticky="ew", padx=14, pady=(10, 16))
         foot.grid_columnconfigure(1, weight=1)
         self.tool_dot = ctk.CTkFrame(foot, width=10, height=10, corner_radius=5, fg_color=T.TEXT_3)
         self.tool_dot.grid(row=0, column=0, rowspan=2, padx=(14, 10), pady=12)
@@ -342,6 +360,142 @@ class App(ctk.CTk):
             self.toast("Update hat nicht geklappt. In PowerShell: winget upgrade yt-dlp.yt-dlp", "error", 8000)
         self.check_tools()
 
+    # ================================================================ Snipload-Updates
+    def check_update(self, silent=False):
+        """Fragt GitHub nach einer neuen Version. silent: keine Meldung, wenn alles aktuell ist."""
+        st = self.upd.get("state")
+        if st in ("checking", "downloading", "ready"):
+            return
+        self.upd.update(state="checking", error=None)
+        self._render_update()
+
+        def work():
+            try:
+                info = updater.check()
+                self.post(lambda: self._update_checked(info, None, silent))
+            except updater.UpdateError as ex:
+                msg = str(ex)
+                self.post(lambda: self._update_checked(None, msg, silent))
+        threading.Thread(target=work, daemon=True).start()
+        self.after(6 * 3600 * 1000, lambda: self.check_update(silent=True))  # alle 6 Stunden
+
+    def _update_checked(self, info, error, silent):
+        self.upd["checked_at"] = datetime.now().strftime("%H:%M")
+        if error:
+            self.upd.update(state="error", error=error, info=None)
+            if not silent:
+                self.toast(error, "warn", 6000)
+        elif info is None:
+            self.upd.update(state="current", info=None)
+            if not silent:
+                self.toast(f"Snipload ist aktuell (Version {updater.current_version()}).", "success")
+        else:
+            self.upd.update(state="available", info=info)
+            if updater.can_self_update() and self.cfg.get("auto_update", True):
+                self.download_update()
+            else:
+                self.toast(f"Neue Version {info['version']} verfügbar.", "info", 8000,
+                           action=self.update_clicked, action_text="Ansehen", key="update")
+        self._render_update()
+
+    def download_update(self):
+        info = self.upd.get("info")
+        if not info or self.upd.get("state") in ("downloading", "ready"):
+            return
+        if not updater.can_self_update():
+            import webbrowser
+            webbrowser.open(info.get("page") or f"https://github.com/{updater.REPO}/releases/latest")
+            return
+        self.upd.update(state="downloading", progress=0.0)
+        self._render_update()
+
+        def prog(f):
+            self.upd["progress"] = f
+
+        def work():
+            try:
+                path = updater.download(info, prog)
+                self.post(lambda: self._update_downloaded(path, None))
+            except updater.UpdateError as ex:
+                msg = str(ex)
+                self.post(lambda: self._update_downloaded(None, msg))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_downloaded(self, path, error):
+        if error:
+            self.upd.update(state="available", error=error)
+            self.toast(error, "error", 7000)
+        else:
+            self.upd.update(state="ready", path=path)
+            v = self.upd["info"]["version"]
+            self.toast(f"Version {v} ist bereit. Neu starten, um sie zu nutzen – oder einfach beim nächsten "
+                       f"Schließen.", "success", 10000, action=self.restart_for_update, action_text="Neu starten",
+                       key="update")
+        self._render_update()
+
+    def update_clicked(self):
+        st = self.upd.get("state")
+        info = self.upd.get("info") or {}
+        if st == "ready":
+            self.restart_for_update()
+        elif st == "available":
+            notes = f"\n\nNeu: {info['notes']}" if info.get("notes") else ""
+            if dialog(self, f"Snipload {info.get('version')} ist da",
+                      f"Du hast Version {updater.current_version()}.{notes}\n\nDas Update wird im Hintergrund "
+                      "geladen – du kannst normal weiterarbeiten.", "Jetzt aktualisieren", "Später",
+                      kind="download"):
+                self.download_update()
+        elif st == "downloading":
+            self.toast("Das Update wird gerade geladen …", "info", 2500, key="update")
+        else:
+            self.check_update(silent=False)
+
+    def restart_for_update(self):
+        if self.upd.get("state") != "ready":
+            return
+        active = [j for j in self.queue.jobs if j.active]
+        if active and not dialog(self, "Jetzt neu starten?",
+                                 f"Es laufen noch {len(active)} Download(s). Sie werden abgebrochen.",
+                                 "Neu starten", "Abbrechen", kind="warn", danger=True):
+            return
+        for j in active:
+            j.cancel()
+        try:
+            updater.install(self.upd["path"], restart=True)
+        except Exception as ex:
+            self.toast(f"Update konnte nicht gestartet werden: {ex}", "error", 8000)
+            return
+        if getattr(self, "_geom", None) and self.state() == "normal":
+            self.cfg["geometry"] = self._geom
+        self.save()
+        self.destroy()
+
+    def _render_update(self):
+        st = self.upd.get("state")
+        info = self.upd.get("info") or {}
+        b, bar = self.upd_btn, self.upd_bar
+        if st in ("available", "downloading", "ready"):
+            b.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 0))
+            if st == "available":
+                b.configure(text=f"Update {info.get('version')} verfügbar", state="normal",
+                            image=icon("download", 16, "#ffffff"))
+                bar.grid_forget()
+            elif st == "downloading":
+                b.configure(text=f"Lade Update … {self.upd.get('progress', 0) * 100:.0f} %",
+                            image=icon("download", 16, "#ffffff"))
+                bar.grid(row=4, column=0, sticky="ew", padx=20, pady=(6, 0))
+                bar.set(self.upd.get("progress", 0))
+            else:
+                b.configure(text=f"Neu starten für {info.get('version')}", state="normal",
+                            image=icon("refresh", 16, "#ffffff"))
+                bar.grid_forget()
+        else:
+            b.grid_forget()
+            bar.grid_forget()
+        sp = self.pages.get("settings") if hasattr(self, "pages") else None
+        if sp is not None:
+            sp.refresh_update()
+
     # ================================================================ Zwischenablage
     def _check_clipboard(self):
         if not self.cfg.get("watch_clipboard", True):
@@ -415,6 +569,8 @@ class App(ctk.CTk):
                 b.place(relx=1.0, rely=0.5, x=-12, anchor="e")
             else:
                 b.place_forget()
+            if self.upd.get("state") == "downloading":
+                self._render_update()
             now = time.time()
             if now >= self._clip_next:
                 self._clip_next = now + 1.0

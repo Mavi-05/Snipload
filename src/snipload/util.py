@@ -52,6 +52,7 @@ DEFAULTS = {
     "sound": True,
     "open_after": False,
     "watch_clipboard": True,
+    "auto_update": True,
     "name_template": "{titel} [{start} bis {ende}]",
     "history": [],
     "geometry": None,

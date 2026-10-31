@@ -31,6 +31,7 @@ Jede Änderung am Code baut automatisch eine neue Version (siehe *Actions*).
   automatisch dort, wo der letzte aufgehört hat
 - **Verlauf** mit Vorschaubildern, Suche, „Nochmal“ und Größe
 - Fortschritt mit Restzeit, Ton und blinkende Taskleiste, wenn ein Clip fertig ist
+- **Automatische Updates**: Snipload lädt neue Versionen im Hintergrund und tauscht sich beim Neustart selbst aus
 - yt-dlp-Update per Knopf, Warnung bei veralteter Version, fehlende Werkzeuge per winget installieren
 - Tastenkürzel: `Strg+V` Link einfügen, `Strg+Enter` herunterladen, `Strg+1…4` Seiten wechseln
 
@@ -50,6 +51,7 @@ Bitte nur Inhalte herunterladen, die du verwenden darfst.
 | `src/snipload/app.py` | Hauptfenster, Seitenleiste, Ereignisse |
 | `src/snipload/pages/` | die vier Seiten: Neuer Clip, Warteschlange, Verlauf, Einstellungen |
 | `src/snipload/jobs.py` | Downloads, Warteschlange, Shorts-Umwandlung (yt-dlp + ffmpeg) |
+| `src/snipload/updater.py` | Selbst-Update über GitHub-Releases |
 | `src/snipload/tools.py` | yt-dlp/ffmpeg finden, Video-Infos, Storyboard, Updates |
 | `src/snipload/widgets.py` | Bausteine: Zeitleiste, Zeitfeld, Knöpfe, Meldungen, Dialog |
 | `src/snipload/theme.py` · `icons.py` | Farben, Schriften, eigene Icons |

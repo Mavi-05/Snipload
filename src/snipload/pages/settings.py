@@ -9,6 +9,7 @@ import customtkinter as ctk
 from .. import APP, VERSION
 from .. import theme as T
 from .. import tools
+from .. import updater
 from ..icons import icon
 from ..util import DEFAULTS, build_name, config_dir, open_path
 from ..widgets import button, card, entry, label, switch
@@ -110,6 +111,23 @@ class SettingsPage(ctk.CTkFrame):
         self._switch(s, 3, "watch_clipboard", "Links aus der Zwischenablage erkennen",
                      "Kopierst du einen YouTube-Link, schlägt Snipload ihn automatisch vor.")
 
+        # ---------------------------------------------------- Updates
+        s = self._section("Updates", "refresh")
+        uf = ctk.CTkFrame(s, fg_color=T.SURFACE_2, corner_radius=T.RADIUS_SM, border_width=1, border_color=T.BORDER)
+        uf.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        uf.grid_columnconfigure(1, weight=1)
+        self.u_dot = ctk.CTkFrame(uf, width=10, height=10, corner_radius=5, fg_color=T.TEXT_3)
+        self.u_dot.grid(row=0, column=0, rowspan=2, padx=(16, 12))
+        self.u_title = label(uf, f"Snipload {updater.current_version()}", 13, T.TEXT, "bold", anchor="w")
+        self.u_title.grid(row=0, column=1, sticky="w", pady=(10, 0))
+        self.u_status = label(uf, "", 12, T.TEXT_3, anchor="w", justify="left", wraplength=460)
+        self.u_status.grid(row=1, column=1, sticky="w", pady=(0, 10))
+        self.u_btn = button(uf, "Nach Updates suchen", lambda: self.app.update_clicked(), "secondary", size="sm",
+                            icon_name="refresh")
+        self.u_btn.grid(row=0, column=2, rowspan=2, padx=12)
+        self._switch(s, 1, "auto_update", "Updates automatisch herunterladen",
+                     "Neue Versionen werden im Hintergrund geladen und beim nächsten Neustart eingespielt.")
+
         # ---------------------------------------------------- Werkzeuge
         s = self._section("Werkzeuge", "settings",
                           "Snipload nutzt yt-dlp zum Laden und ffmpeg zum Schneiden. Wenn Downloads plötzlich "
@@ -129,7 +147,7 @@ class SettingsPage(ctk.CTkFrame):
             ctk.CTkLabel(ab, text="", image=logo).grid(row=0, column=0, rowspan=2, padx=(0, 14))
         except Exception:
             pass
-        label(ab, f"{APP} {VERSION}", 15, T.TEXT, "bold", kind="display", anchor="w").grid(row=0, column=1,
+        label(ab, f"{APP} {updater.current_version()}", 15, T.TEXT, "bold", kind="display", anchor="w").grid(row=0, column=1,
                                                                                          sticky="w")
         label(ab, "Clips aus YouTube-Videos – schnell, genau, ohne Umwege.", 12, T.TEXT_3, anchor="w").grid(
             row=1, column=1, sticky="w")
@@ -214,6 +232,35 @@ class SettingsPage(ctk.CTkFrame):
             if dp is not None:
                 dp._update_name()
 
+    def refresh_update(self):
+        if not hasattr(self, "u_status"):
+            return
+        u = self.app.upd
+        st, info = u.get("state"), u.get("info") or {}
+        dot, txt, btn, ok = T.TEXT_3, "", "Nach Updates suchen", True
+        if st == "checking":
+            txt, ok = "Suche nach Updates …", False
+        elif st == "current":
+            dot, txt = T.SUCCESS, f"Du hast die neueste Version (geprüft um {u.get('checked_at', '')})."
+        elif st == "available":
+            dot = T.ACCENT
+            txt = f"Version {info.get('version')} ist verfügbar." + (f" Neu: {info['notes']}" if info.get("notes")
+                                                                         else "")
+            if not updater.can_self_update():
+                txt += "  (Wird auf der Download-Seite geöffnet.)"
+            btn = "Jetzt aktualisieren"
+        elif st == "downloading":
+            dot, txt, ok = T.ACCENT, f"Lade Version {info.get('version')} … {u.get('progress', 0) * 100:.0f} %", False
+            btn = "Wird geladen …"
+        elif st == "ready":
+            dot, txt, btn = T.SUCCESS, f"Version {info.get('version')} ist bereit.", "Neu starten"
+        elif st == "error":
+            dot, txt = T.WARN, u.get("error") or "Update-Prüfung fehlgeschlagen."
+        self.u_dot.configure(fg_color=dot)
+        self.u_status.configure(text=txt or "Noch nicht geprüft.")
+        self.u_btn.configure(text=btn, state="normal" if ok else "disabled")
+
     def on_show(self):
+        self.refresh_update()
         self.folder_var.set(self.cfg.get("folder"))
         self.refresh_tools()

@@ -20,4 +20,7 @@ text = f"""VSVersionInfo(
 """
 with open("tools/version_info.txt", "w", encoding="utf-8") as f:
     f.write(text)
+# Build-Nummer fuer das Selbst-Update in die App schreiben (UTF-8, nicht ueber PowerShell!)
+with open("src/snipload/_build.py", "w", encoding="utf-8") as f:
+    f.write(f'BUILD = "{version}"\n')
 print("Versionsinfo:", version)
