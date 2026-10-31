@@ -34,7 +34,7 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          $v = (Select-String -Path src/snipload.py -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
+          $v = (Select-String -Path src/snipload/__init__.py -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
           "version=$v" >> $env:GITHUB_OUTPUT
           "full=$v.${{ github.run_number }}" >> $env:GITHUB_OUTPUT
           "tag=v$v.${{ github.run_number }}" >> $env:GITHUB_OUTPUT
@@ -50,7 +50,8 @@ jobs:
           --add-data "assets/icon.ico;."
           --add-data "assets/icon.png;."
           --version-file tools/version_info.txt
-          src/snipload.py
+          --paths src
+          src/main.py
 
       - name: Starttest (stuerzt die exe direkt ab?)
         shell: pwsh

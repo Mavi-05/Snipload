@@ -13,15 +13,26 @@ Jede Änderung am Code baut automatisch eine neue Version (siehe *Actions*).
 
 ## Funktionen
 
-- Link kopieren → Snipload fügt ihn automatisch ein
-- Vorschaubild, Titel, Kanal und Länge des Videos
-- Zeitleiste mit zwei Griffen für Start und Ende (Mitte ziehen verschiebt den ganzen Ausschnitt)
+**Clip erstellen**
+- Link kopieren – Snipload erkennt ihn automatisch (auch später: „Neuer Link in der Zwischenablage“)
+- Vorschaubild, Titel, Kanal, Aufrufe und Datum des Videos
+- **Filmstreifen-Zeitleiste** wie im Videoschnitt: Start/Ende-Griffe ziehen, Mitte verschiebt den ganzen Ausschnitt,
+  beim Darüberfahren zeigt die Vorschau das Bild an genau dieser Stelle
+- Zeitfelder mit −/+, Mausrad und Pfeiltasten (Umschalt = 5 s, Alt = 0,1 s, Tab wechselt den Griff)
 - Links mit Zeitangabe (`&t=125`, `?t=1m30s`) setzen den Start automatisch
-- „Auf YouTube ab Start prüfen“ – öffnet das Video genau an der Startzeit
-- Sekundengenaues Schneiden, Qualität wählbar (beste / 1080p / 720p / 480p)
-- Fortschritt mit Restzeit, danach *Abspielen* und *Im Ordner zeigen*
-- Verlauf der letzten Clips, mit „Nochmal“ wieder laden
-- Knopf zum Aktualisieren von yt-dlp; fehlende Werkzeuge werden per winget installiert
+
+**Ausgabe**
+- Video bis 4K oder nur Ton (MP3, M4A, WAV)
+- **Shorts 9:16** (1080×1920) – Bildmitte zugeschnitten oder ganzes Bild mit unscharfem Hintergrund
+- Sekundengenaues Schneiden, Dateiname mit Vorlage (`{titel}`, `{kanal}`, `{start}`, `{ende}`, `{datum}`, `{id}`)
+
+**Arbeiten**
+- **Warteschlange**: mehrere Clips sammeln, Snipload lädt sie nacheinander; der nächste Abschnitt startet
+  automatisch dort, wo der letzte aufgehört hat
+- **Verlauf** mit Vorschaubildern, Suche, „Nochmal“ und Größe
+- Fortschritt mit Restzeit, Ton und blinkende Taskleiste, wenn ein Clip fertig ist
+- yt-dlp-Update per Knopf, Warnung bei veralteter Version, fehlende Werkzeuge per winget installieren
+- Tastenkürzel: `Strg+V` Link einfügen, `Strg+Enter` herunterladen, `Strg+1…4` Seiten wechseln
 
 ## Was im Hintergrund läuft
 
@@ -35,9 +46,15 @@ Bitte nur Inhalte herunterladen, die du verwenden darfst.
 
 | Ordner | Inhalt |
 |---|---|
-| `src/snipload.py` | das komplette Programm (Python, CustomTkinter) |
+| `src/main.py` | Startpunkt |
+| `src/snipload/app.py` | Hauptfenster, Seitenleiste, Ereignisse |
+| `src/snipload/pages/` | die vier Seiten: Neuer Clip, Warteschlange, Verlauf, Einstellungen |
+| `src/snipload/jobs.py` | Downloads, Warteschlange, Shorts-Umwandlung (yt-dlp + ffmpeg) |
+| `src/snipload/tools.py` | yt-dlp/ffmpeg finden, Video-Infos, Storyboard, Updates |
+| `src/snipload/widgets.py` | Bausteine: Zeitleiste, Zeitfeld, Knöpfe, Meldungen, Dialog |
+| `src/snipload/theme.py` · `icons.py` | Farben, Schriften, eigene Icons |
 | `assets/` | Icon |
 | `tools/` | Hilfsskript für die Versionsinfo der exe |
 | `.github/workflows/build.yml` | baut die exe auf Windows und veröffentlicht sie als Release |
 
-Die Versionsnummer steht oben in `src/snipload.py` (`VERSION = ...`); die Build-Nummer wird automatisch angehängt.
+Die Versionsnummer steht in `src/snipload/__init__.py` (`VERSION = ...`); die Build-Nummer wird automatisch angehängt.
