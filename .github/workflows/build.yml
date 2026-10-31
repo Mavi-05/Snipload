@@ -1,0 +1,85 @@
+name: Windows-Build
+
+# Baut bei jeder Aenderung am Code automatisch eine neue Snipload.exe
+# und stellt sie unter "Releases" zum Download bereit.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "assets/**"
+      - "tools/**"
+      - "requirements.txt"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Abhaengigkeiten installieren
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Versionsnummer bestimmen
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path src/snipload.py -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "full=$v.${{ github.run_number }}" >> $env:GITHUB_OUTPUT
+          "tag=v$v.${{ github.run_number }}" >> $env:GITHUB_OUTPUT
+
+      - name: Versionsinfo erzeugen
+        run: python tools/make_version_info.py "${{ steps.ver.outputs.full }}"
+
+      - name: exe bauen
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name Snipload
+          --icon assets/icon.ico
+          --add-data "assets/icon.ico;."
+          --add-data "assets/icon.png;."
+          --version-file tools/version_info.txt
+          src/snipload.py
+
+      - name: Starttest (stuerzt die exe direkt ab?)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist/Snipload.exe" -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) {
+            Write-Error "Snipload.exe hat sich nach dem Start sofort beendet (Exit-Code $($p.ExitCode))."
+            exit 1
+          }
+          Write-Host "Snipload laeuft nach 20 Sekunden noch - Starttest bestanden."
+          Get-Process -Name Snipload -ErrorAction SilentlyContinue | Stop-Process -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Snipload-${{ steps.ver.outputs.full }}
+          path: dist/Snipload.exe
+
+      - name: Release veroeffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Snipload ${{ steps.ver.outputs.full }}
+          make_latest: true
+          body: |
+            **Download:** `Snipload.exe` unten bei *Assets* anklicken, herunterladen, starten.
+
+            Beim ersten Start zeigt Windows evtl. „Der Computer wurde durch Windows geschuetzt" –
+            dann auf „Weitere Informationen" und „Trotzdem ausfuehren" klicken.
+
+            Aenderung: ${{ github.event.head_commit.message }}
+          files: dist/Snipload.exe
