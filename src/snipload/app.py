@@ -257,9 +257,9 @@ class App(ctk.CTk):
             return
         y, f = st.get("ytdlp"), st.get("ffmpeg")
         if not y or not f:
-            missing = " & ".join(n for n, v in (("yt-dlp", y), ("ffmpeg", f)) if not v)
+            missing = [n for n, v in (("yt-dlp", y), ("ffmpeg", f)) if not v]
             self.tool_dot.configure(fg_color=T.DANGER)
-            self.tool_l1.configure(text=f"{missing} fehlt")
+            self.tool_l1.configure(text=" & ".join(missing) + (" fehlen" if len(missing) > 1 else " fehlt"))
             self.tool_l2.configure(text="Hier klicken zum Installieren")
             return
         age = tools.version_age_days(y)

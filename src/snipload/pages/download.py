@@ -127,6 +127,13 @@ class DownloadPage(ctk.CTkFrame):
         self.meta_lbl = label(info, "Kopier einen YouTube-Link – Snipload erkennt ihn automatisch.", 13,
                               T.TEXT_3, anchor="w", justify="left", wraplength=420)
         self.meta_lbl.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        # Textumbruch an die tatsaechliche Breite anpassen (kleine Bildschirme)
+        def rewrap(e):
+            s = ctk.ScalingTracker.get_widget_scaling(info) or 1
+            w = max(160, int(e.width / s) - 6)
+            self.title_lbl.configure(wraplength=w)
+            self.meta_lbl.configure(wraplength=w)
+        info.bind("<Configure>", rewrap)
         acts = ctk.CTkFrame(v, fg_color="transparent", height=1)
         acts.grid(row=1, column=1, sticky="sw", padx=(18, 0))
         self.yt_btn = button(acts, "Auf YouTube ab Start ansehen", self.open_on_youtube, "secondary",
@@ -886,7 +893,7 @@ class DownloadPage(ctk.CTkFrame):
                 self.run_bar.set(j.progress)
         elif state == "done":
             name = os.path.basename(j.file) if j.file else j.name
-            self.done1.configure(text="Fertig!  " + (name if len(name) < 46 else name[:43].rstrip() + "…"))
+            self.done1.configure(text="Fertig!  " + (name if len(name) <= 34 else name[:32].rstrip() + "…"))
             extra = [fmt_size(j.size), j.detail]
             self.done2.configure(text="  ·  ".join(x for x in extra if x))
         elif state == "fail":
