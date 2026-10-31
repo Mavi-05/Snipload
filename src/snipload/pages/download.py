@@ -8,13 +8,14 @@ from tkinter import filedialog
 import customtkinter as ctk
 
 from .. import theme as T
+from .. import facecam
 from .. import tools
 from ..icons import icon, rounded_image
 from ..jobs import Job, QUALITY_LABELS, ASPECT_LABELS, AUDIO_LABELS
 from ..util import (build_name, fmt_count, fmt_duration_words, fmt_short, fmt_size, fmt_upload_date,
                     is_youtube, looks_like_url, open_path, parse_time, show_in_folder, start_from_url,
                     thumbs_dir)
-from ..widgets import (Shimmer, Timeline, TimeField, badge, button, card, entry, label, option_menu,
+from ..widgets import (Shimmer, Timeline, TimeField, badge, button, card, entry, label, option_menu, switch,
                        progress_bar, segmented)
 
 PREV_W, PREV_H = 288, 162
@@ -54,6 +55,7 @@ class DownloadPage(ctk.CTkFrame):
         self.hd_due = 0.0
         self.hd_busy = False
         self.cur_t = None
+        self.cam = None          # Facecam: {"vid","range","frames","result","layout","busy","progress"}
         self._shown_state = None
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -207,26 +209,47 @@ class DownloadPage(ctk.CTkFrame):
         self.kind_seg = segmented(left, KIND_VALUES, command=lambda v: self._apply_kind(save=True))
         self.kind_seg.grid(row=1, column=0, sticky="ew")
         self.kind_seg.set("Nur Ton" if self.cfg.get("kind") == "audio" else "Video")
-        self.q_title = label(left, "QUALITÄT", 11, T.TEXT_3, "bold")
-        self.q_title.grid(row=2, column=0, sticky="w", pady=(14, 5))
-        self.q_menu = option_menu(left, QUALITY_VALUES, command=lambda v: self._save_opts())
+
+        qf = ctk.CTkFrame(c, fg_color="transparent")
+        qf.grid(row=1, column=1, sticky="new", padx=(9, 18), pady=(4, 0))
+        qf.grid_columnconfigure(0, weight=1)
+        self.q_title = label(qf, "QUALITÄT", 11, T.TEXT_3, "bold")
+        self.q_title.grid(row=0, column=0, sticky="w", pady=(0, 5))
+        self.q_menu = option_menu(qf, QUALITY_VALUES, command=lambda v: self._save_opts())
         self.q_menu.set(QUALITY_LABELS.get(self.cfg.get("quality"), QUALITY_LABELS["best"]))
-        self.q_menu.grid(row=3, column=0, sticky="ew")
-        self.a_menu = option_menu(left, AUDIO_VALUES, command=lambda v: self._save_opts())
+        self.q_menu.grid(row=1, column=0, sticky="ew")
+        self.a_menu = option_menu(qf, AUDIO_VALUES, command=lambda v: self._save_opts())
         self.a_menu.set(AUDIO_LABELS.get(self.cfg.get("audio_fmt"), "MP3"))
 
         right = ctk.CTkFrame(c, fg_color="transparent")
-        right.grid(row=1, column=1, sticky="new", padx=(9, 18), pady=(4, 0))
+        right.grid(row=2, column=0, columnspan=2, sticky="new", padx=18, pady=(14, 0))
         right.grid_columnconfigure(0, weight=1)
-        label(right, "SEITENFORMAT", 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        label(right, "FORMAT", 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
         self.aspect_seg = segmented(right, ASPECT_VALUES, command=lambda v: self._apply_kind(save=True))
         self.aspect_seg.grid(row=1, column=0, sticky="ew")
         self.aspect_seg.set(ASPECT_LABELS.get(self.cfg.get("aspect"), "Original"))
-        self.aspect_hint = label(right, "", 11, T.TEXT_3, anchor="w", justify="left", wraplength=330)
+        self.aspect_hint = label(right, "", 12, T.TEXT_3, anchor="w", justify="left", wraplength=700)
         self.aspect_hint.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        self.also_var = tk.BooleanVar(value=bool(self.cfg.get("also_full", False)))
+        self.also_sw = switch(right, "Zusätzlich das normale Video speichern", self.also_var, self._also_changed)
+        self.fc_row = ctk.CTkFrame(right, fg_color=T.SURFACE_2, corner_radius=T.RADIUS_SM, border_width=1,
+                                   border_color=T.BORDER)
+        self.fc_row.grid_columnconfigure(1, weight=1)
+        self.fc_icon = ctk.CTkLabel(self.fc_row, text="")
+        self.fc_icon.grid(row=0, column=0, rowspan=2, padx=(12, 8), pady=10, sticky="n")
+        self.fc_text = label(self.fc_row, "", 12, T.TEXT, anchor="w", justify="left", wraplength=560)
+        self.fc_text.grid(row=0, column=1, sticky="ew", pady=(10, 4), padx=(0, 10))
+        self.fc_size = badge(self.fc_row, "", fg=T.ACCENT_SOFT, color=T.TEXT)
+        fcb = ctk.CTkFrame(self.fc_row, fg_color="transparent")
+        fcb.grid(row=1, column=1, sticky="w", pady=(0, 10))
+        self.fc_edit = button(fcb, "Anpassen …", self.open_facecam_editor, "secondary", size="sm",
+                              icon_name="monitor")
+        self.fc_edit.pack(side="left")
+        self.fc_recheck = button(fcb, "Neu prüfen", self.analyze_facecam, "ghost", size="sm", icon_name="refresh")
+        self.fc_recheck.pack(side="left", padx=(6, 0))
 
         nm = ctk.CTkFrame(c, fg_color="transparent")
-        nm.grid(row=2, column=0, columnspan=2, sticky="ew", padx=18, pady=(14, 0))
+        nm.grid(row=3, column=0, columnspan=2, sticky="ew", padx=18, pady=(14, 0))
         nm.grid_columnconfigure(0, weight=1)
         label(nm, "DATEINAME", 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
         self.name_var = tk.StringVar()
@@ -239,7 +262,7 @@ class DownloadPage(ctk.CTkFrame):
         self.reset_name_btn.grid(row=1, column=2, padx=(4, 0))
 
         fd = ctk.CTkFrame(c, fg_color="transparent")
-        fd.grid(row=3, column=0, columnspan=2, sticky="ew", padx=18, pady=(14, 18))
+        fd.grid(row=4, column=0, columnspan=2, sticky="ew", padx=18, pady=(14, 18))
         fd.grid_columnconfigure(1, weight=1)
         label(fd, "SPEICHERN IN", 11, T.TEXT_3, "bold").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 5))
         ctk.CTkLabel(fd, text="", image=icon("folder", 16, T.TEXT_2)).grid(row=1, column=0, padx=(2, 8))
@@ -381,12 +404,14 @@ class DownloadPage(ctk.CTkFrame):
             self._show_preview(self.hover_t)
         # HD-Standbild holen, sobald die Maus kurz still steht
         if (self.hd_want is not None and not self.hd_busy and self.frame_fmt
-                and time.time() >= self.hd_due):
+                and (getattr(self, "hd_fails", 0) < 3 or self.hd_cache) and time.time() >= self.hd_due):
             t = self.hd_want
             self.hd_want = None
             self.hd_busy = True
             fmt, gen = self.frame_fmt, self.info_gen
             threading.Thread(target=self._hd_worker, args=(fmt, t, gen), daemon=True).start()
+        if self.cam is not None and self.cam.get("busy"):
+            self._update_facecam_ui()
         self._refresh_bar()
 
     def _force_load(self):
@@ -408,7 +433,9 @@ class DownloadPage(ctk.CTkFrame):
         self.frame_fmt = None
         self.hd_cache = {}
         self.hd_want = None
+        self.hd_fails = 0
         self.cur_t = None
+        self.cam = None
         self.info = None
         self.summary = None
         self.storyboard = None
@@ -544,6 +571,7 @@ class DownloadPage(ctk.CTkFrame):
                 e = min(max(e, s + 1), dur)
         self._set_range(s, e)
         self._show_preview(None)
+        self._update_facecam_ui(start_if_needed=True)
 
     # ================================================================ Vorschau
     @staticmethod
@@ -560,8 +588,11 @@ class DownloadPage(ctk.CTkFrame):
             return
         key = self._hd_key(t)
         if img is None:
-            self.frame_fmt = None if not self.hd_cache else self.frame_fmt  # klappt gar nicht -> aufgeben
+            # nach 3 Fehlschlaegen in Folge (und noch keinem Erfolg) keine HD-Bilder mehr versuchen;
+            # die Facecam-Analyse nutzt frame_fmt weiter
+            self.hd_fails = getattr(self, "hd_fails", 0) + 1
             return
+        self.hd_fails = 0
         self.hd_cache[key] = ctk.CTkImage(rounded_image(img, PREV_W * 2, PREV_H * 2, 20), size=(PREV_W, PREV_H))
         while len(self.hd_cache) > 60:
             self.hd_cache.pop(next(iter(self.hd_cache)))
@@ -635,7 +666,8 @@ class DownloadPage(ctk.CTkFrame):
         else:
             self.preview_cap.place_forget()
         # nicht scharf? -> HD-Standbild anfordern, sobald die Maus kurz stillsteht
-        if show_t is not None and quality != "hd" and self.frame_fmt is not None:
+        if show_t is not None and quality != "hd" and self.frame_fmt is not None and \
+                (getattr(self, "hd_fails", 0) < 3 or self.hd_cache):
             self.hd_want = show_t
             self.hd_due = time.time() + 0.45
 
@@ -734,13 +766,14 @@ class DownloadPage(ctk.CTkFrame):
         if audio:
             self.q_title.configure(text="AUDIOFORMAT")
             self.q_menu.grid_remove()
-            self.a_menu.grid(row=3, column=0, sticky="ew")
+            self.a_menu.grid(row=1, column=0, sticky="ew")
             self.aspect_seg.configure(state="disabled", selected_color=T.SURFACE_3, selected_hover_color=T.SURFACE_3)
             self.aspect_hint.configure(text="Beim reinen Ton gibt es kein Seitenformat.")
+            self.fc_row.grid_forget()
         else:
             self.q_title.configure(text="QUALITÄT")
             self.a_menu.grid_remove()
-            self.q_menu.grid(row=3, column=0, sticky="ew")
+            self.q_menu.grid(row=1, column=0, sticky="ew")
             self.aspect_seg.configure(state="normal", selected_color=T.ACCENT, selected_hover_color=T.ACCENT_HOVER)
             asp = _key_for(ASPECT_LABELS, self.aspect_seg.get())
             self.aspect_hint.configure(text={
@@ -748,11 +781,213 @@ class DownloadPage(ctk.CTkFrame):
                 "crop916": "Hochformat 1080×1920 für Shorts, TikTok und Reels – die Bildmitte wird ausgeschnitten.",
                 "blur916": "Hochformat 1080×1920: ganzes Bild in der Mitte, darüber und darunter unscharfer "
                            "Hintergrund.",
+                "facecam": "Hochformat 1080×1920: Facecam oben, Gameplay darunter. Snipload sucht die Facecam "
+                           "im gewählten Zeitraum automatisch.",
+                "facecam_raw": "Nur die Facecam als eigenes Video – 1:1 in Originalgröße, pixelgenau "
+                               "ausgeschnitten, ohne Rahmen. Dafür lädt Snipload das Video in bester Qualität.",
             }.get(asp, ""))
+            if asp == "facecam_raw":
+                self.q_menu.set(QUALITY_LABELS["best"])
+                self.q_menu.configure(state="disabled")
+            else:
+                self.q_menu.configure(state="normal")
+            if asp in ("crop916", "blur916", "facecam", "facecam_raw"):
+                self.also_sw.grid(row=4, column=0, sticky="w", pady=(10, 0))
+            else:
+                self.also_sw.grid_forget()
+        if audio:
+            self.also_sw.grid_forget()
+            self.q_menu.configure(state="normal")
+        self._update_facecam_ui(start_if_needed=True)
         self.ext_lbl.configure(text="." + (self._audio_fmt() if audio else "mp4"))
         if save:
             self._save_opts()
         self._refresh_bar(force=True)
+
+    # ================================================================ Facecam
+    def _facecam_mode(self):
+        if self.kind_seg.get() == "Nur Ton":
+            return None
+        a = _key_for(ASPECT_LABELS, self.aspect_seg.get())
+        return a if a in ("facecam", "facecam_raw") else None
+
+    def _facecam_selected(self):
+        return self._facecam_mode() is not None
+
+    def _also_changed(self):
+        self.cfg["also_full"] = bool(self.also_var.get())
+        self.app.save()
+        self._refresh_bar(force=True)
+
+    def _aspect(self):
+        inf = self.info or {}
+        return inf["width"] / inf["height"] if inf.get("width") and inf.get("height") else 16 / 9
+
+    def analyze_facecam(self):
+        """Holt ~10 Standbilder aus dem gewaehlten Zeitraum und sucht darin die Facecam."""
+        if not self.info:
+            return
+        try:
+            s, e = self.current_range()
+        except ValueError:
+            return
+        vid = self.info.get("id")
+        prev = self.cam or {}
+        self.cam = {"vid": vid, "range": (s, e), "frames": [], "result": None, "busy": True, "progress": (0, 10),
+                    "layout": prev.get("layout") if prev.get("vid") == vid else None}
+        self._update_facecam_ui()
+        fmt, gen = tools.pick_frame_format(self.info, max_h=None) or self.frame_fmt, self.info_gen
+        if not fmt or not facecam.available():
+            self.cam.update(busy=False, result={"ok": False, "message": "Für dieses Video gibt es keine "
+                                                "Einzelbilder – leg die Facecam bitte von Hand fest."})
+            if self.thumb_pil is not None:
+                self.cam["frames"] = [(s, self.thumb_pil.convert("RGB"))]
+            self._update_facecam_ui()
+            return
+        token = self.cam  # jede Analyse hat ihr eigenes Objekt - nur die neueste zaehlt
+        threading.Thread(target=self._facecam_worker, args=(gen, token, fmt, s, e), daemon=True).start()
+
+    def _facecam_worker(self, gen, token, fmt, s, e):
+        from concurrent.futures import ThreadPoolExecutor
+        n = 10
+        ts = [s + (e - s) * (i + 0.5) / n for i in range(n)]
+        done = [0]
+
+        def grab(t):
+            img = tools.grab_frame(fmt, t, width=None)   # Originalaufloesung fuer die 1:1-Messung
+            done[0] += 1
+            token["progress"] = (done[0], n)
+            return (t, img)
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            frames = list(ex.map(grab, ts))
+        try:
+            small = [(t, im.resize((960, max(2, int(960 * im.size[1] / im.size[0])))) if im is not None else None)
+                     for t, im in frames]
+            res = facecam.analyze(small, self._aspect())
+            if res.get("ok") and not res.get("fullscreen"):
+                good = [t for t, _ in frames if t not in set(res.get("missing") or [])]
+                res["px"] = facecam.refine(frames, res["box"], good)
+        except Exception as exc:
+            res = {"ok": False, "message": f"Analyse fehlgeschlagen: {exc}"}
+        self.app.post(lambda: self._facecam_done(gen, token, frames, res))
+
+    def _facecam_done(self, gen, token, frames, res):
+        if gen != self.info_gen or self.cam is not token:
+            return  # veraltet: inzwischen anderes Video oder neuere Analyse
+        self.cam.update(busy=False, frames=[(t, im) for t, im in frames if im is not None], result=res)
+        lay = self.cam.get("layout")
+        if res.get("ok") and not res.get("fullscreen") and not (lay and lay.get("manual")):
+            split = float(self.cfg.get("fc_split", 0.40))
+            px = res.get("px")
+            box = facecam.px_to_norm(px) if px else res["box"]
+            self.cam["layout"] = {"cam": box, "split": split,
+                                  "gx": facecam.suggest_gx(box, self._aspect(), split),
+                                  "cam_bottom": bool(self.cfg.get("fc_bottom", False))}
+            self.cam["px"] = px
+        self._update_facecam_ui()
+        if res.get("ok") and not res.get("fullscreen") and res.get("coverage", 0) < 0.8:
+            self.app.toast("Die Facecam ist nicht im ganzen Abschnitt zu sehen – schau es dir kurz an.", "warn", 7000,
+                           action=self.open_facecam_editor, action_text="Ansehen", key="fc")
+
+    def _update_facecam_ui(self, start_if_needed=False):
+        if not hasattr(self, "fc_row"):
+            return
+        if not self._facecam_selected():
+            self.fc_row.grid_forget()
+            return
+        self.fc_row.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        c = self.cam
+        if not self.info:
+            self.fc_icon.configure(image=icon("info", 16, T.TEXT_2))
+            self.fc_text.configure(text="Sobald das Video geladen ist, sucht Snipload die Facecam.")
+            self.fc_edit.configure(state="disabled")
+            self.fc_recheck.pack_forget()
+            return
+        try:
+            rng = self.current_range()
+        except ValueError:
+            rng = None
+        if start_if_needed and (c is None or c.get("vid") != self.info.get("id")):
+            self.analyze_facecam()
+            return
+        if c is None:
+            return
+        if c.get("busy"):
+            i, n = c.get("progress", (0, 10))
+            self.fc_icon.configure(image=icon("search", 16, T.ACCENT))
+            self.fc_text.configure(text=f"Hole Bilder aus dem Abschnitt … {i}/{n}" if i < n else
+                                   "Werte die Bilder aus und suche die Facecam …")
+            self.fc_edit.configure(state="disabled")
+            self.fc_recheck.pack_forget()
+            return
+        r = c.get("result") or {}
+        lay = c.get("layout") or {}
+        self.fc_edit.configure(state="normal")
+        changed = rng is not None and c.get("range") and (abs(rng[0] - c["range"][0]) > 3 or
+                                                           abs(rng[1] - c["range"][1]) > 3)
+        if lay.get("manual"):
+            ic, col, txt = "check", T.SUCCESS, "Facecam von dir festgelegt."
+        elif r.get("fullscreen"):
+            ic, col, txt = "info", T.TEXT_2, (r.get("message") or "") + " Tipp: Nimm lieber „Shorts 9:16“."
+        elif r.get("ok") and r.get("coverage", 0) >= 1.0:
+            ic, col, txt = "check", T.SUCCESS, r.get("message")
+        elif r.get("ok"):
+            ic, col, txt = "alert", T.WARN, r.get("message")
+        else:
+            ic, col, txt = "alert", T.WARN, (r.get("message") or "Keine Facecam erkannt.") + \
+                " Klick auf „Anpassen“ und leg sie fest."
+        if changed and not lay.get("manual"):
+            txt += "  Der Zeitraum hat sich geändert – „Neu prüfen“ checkt ihn nochmal."
+        self.fc_icon.configure(image=icon(ic, 16, col))
+        self.fc_text.configure(text=txt)
+        self.fc_recheck.pack(side="left", padx=(6, 0))
+        px = c.get("px")
+        if px:
+            extra = f"  ·  {px['snapped']}" if px.get("snapped") else ""
+            self.fc_size.configure(text=f"  {px['w']} × {px['h']} px  ·  x {px['x']}, y {px['y']}{extra}  ")
+            self.fc_size.grid(row=0, column=2, rowspan=2, padx=(0, 12))
+        else:
+            self.fc_size.grid_forget()
+
+    def open_facecam_editor(self):
+        from .facecam_editor import FacecamEditor
+        c = self.cam or {}
+        if c.get("busy"):
+            self.app.toast("Die Facecam wird gerade gesucht – einen Moment.", "info", 2500, key="fc")
+            return
+        frames = c.get("frames") or []
+        if not frames:
+            img = None
+            if self.cur_t is not None:
+                img = tools.grab_frame(self.frame_fmt, self.cur_t, width=960) if self.frame_fmt else None
+            if img is None and self.thumb_pil is not None:
+                img = self.thumb_pil.convert("RGB")
+            if img is None:
+                self.app.toast("Erst ein Video laden.", "warn")
+                return
+            frames = [(self.cur_t or 0, img)]
+
+        def apply(layout, px=None):
+            if self.cam is None or self.cam.get("vid") != (self.info or {}).get("id"):
+                self.cam = {"vid": (self.info or {}).get("id"), "range": self.current_range(), "frames": frames,
+                            "result": None, "busy": False}
+            self.cam["layout"] = layout
+            if px:
+                px = dict(px)
+                px.setdefault("snapped", None)
+                self.cam["px"] = px
+            self.cfg["fc_split"] = layout.get("split", 0.4)
+            self.cfg["fc_bottom"] = bool(layout.get("cam_bottom"))
+            self.app.save()
+            self._update_facecam_ui()
+            self._refresh_bar(force=True)
+
+        def redetect():
+            if self.cam is not None and self.cam.get("layout"):
+                self.cam["layout"].pop("manual", None)
+            self.analyze_facecam()
+        FacecamEditor(self.app, frames, c.get("result"), c.get("layout"), self._aspect(), apply, redetect,
+                      mode=self._facecam_mode() or "facecam", px=c.get("px"))
 
     def _audio_fmt(self):
         return _key_for(AUDIO_LABELS, self.a_menu.get()) or "mp3"
@@ -825,6 +1060,14 @@ class DownloadPage(ctk.CTkFrame):
         except OSError:
             self.app.toast("Der Zielordner ist ungültig. Wähle einen anderen.", "error")
             return None
+        if self._facecam_selected():
+            c = self.cam
+            if c and c.get("busy"):
+                self.app.toast("Die Facecam wird noch erkannt – einen Moment.", "info", 3000, key="fc")
+                return None
+            if not c or not (c.get("layout") or {}).get("cam"):
+                self.open_facecam_editor()
+                return None
         if not self.app.ensure_tools():
             return None
         from ..util import safe_filename
@@ -839,6 +1082,17 @@ class DownloadPage(ctk.CTkFrame):
                   _key_for(ASPECT_LABELS, self.aspect_seg.get()) or "original",
                   bool(self.cfg.get("exact", True)), folder, name)
         job.thumb = self.thumb_path
+        if job.aspect in ("facecam", "facecam_raw"):
+            job.layout = dict(self.cam["layout"])
+            if job.aspect == "facecam_raw":
+                px = self.cam.get("px")
+                if not px:
+                    self.app.toast("Leg die Facecam bitte erst fest (Anpassen …).", "warn")
+                    return None
+                job.cam_px = dict(px)
+                job.quality = "best"
+        if job.aspect != "original" and job.kind == "video":
+            job.also_full = bool(self.also_var.get())
         return job
 
     def download(self):
@@ -923,6 +1177,8 @@ class DownloadPage(ctk.CTkFrame):
             asp = self.aspect_seg.get()
             if asp != "Original":
                 fmt += f" · {asp}"
+        if not audio and self.aspect_seg.get() != "Original" and self.also_var.get():
+            fmt += " + normales Video"
         folder = os.path.basename(self.cfg.get("folder") or "") or self.cfg.get("folder")
         return f"Clip {rng}", f"{fmt}  →  {folder}"
 

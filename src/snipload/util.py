@@ -53,6 +53,9 @@ DEFAULTS = {
     "open_after": False,
     "watch_clipboard": True,
     "auto_update": True,
+    "fc_split": 0.40,
+    "fc_bottom": False,
+    "also_full": False,
     "name_template": "{titel} [{start} bis {ende}]",
     "history": [],
     "geometry": None,
@@ -187,6 +190,12 @@ def fmt_upload_date(s):
 # ================================================================ Links
 def looks_like_url(text):
     return bool(re.match(r"^https?://\S+$", (text or "").strip()))
+
+
+def is_video_link(text):
+    """Links, die Snipload aus der Zwischenablage uebernimmt: YouTube, Twitch-VODs/Clips, Kick."""
+    return bool(re.search(r"^https?://([a-z0-9-]+\.)?(youtube\.com|youtu\.be|twitch\.tv|kick\.com)/",
+                          (text or "").strip(), re.I))
 
 
 def is_youtube(text):

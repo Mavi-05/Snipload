@@ -182,7 +182,7 @@ def friendly_error(msg):
 def info_summary(info):
     """Nur die Felder, die Snipload braucht (fuer Verlauf und Warteschlange)."""
     keys = ("id", "title", "channel", "uploader", "duration", "webpage_url", "extractor_key",
-            "view_count", "upload_date", "thumbnail")
+            "view_count", "upload_date", "thumbnail", "width", "height")
     return {k: info.get(k) for k in keys}
 
 
@@ -211,29 +211,57 @@ def pick_preview_storyboard(info, strip_fmt):
     return best
 
 
-def pick_frame_format(info):
-    """Video-Format fuer HD-Standbilder: direkte https-Datei, hoechstens 720p, am liebsten H.264."""
+def pick_frame_format(info, max_h=1080):
+    """Video-Format fuer Standbilder: direkte https-Datei, am liebsten H.264.
+
+    max_h=1080: fuer die Vorschau (720p ideal). max_h=None: hoechste Aufloesung (Facecam 1:1)."""
     cands = []
     for f in info.get("formats") or []:
         if f.get("vcodec") in (None, "none") or not f.get("url"):
             continue
-        if f.get("protocol") not in ("https", "http"):
+        proto = f.get("protocol") or ""
+        if proto not in ("https", "http", "m3u8", "m3u8_native"):  # m3u8: Twitch-VODs
             continue
         h = f.get("height") or 0
-        if not h or h > 1080:
+        if not h or (max_h and h > max_h):
             continue
         codec = (f.get("vcodec") or "").lower()
-        score = (h if h <= 720 else 720 - (h - 720),            # 720p ideal
+        score = (0 if proto.startswith("m3u8") else 1,           # direkte Datei bevorzugt (schneller)
+                 h if (max_h is None or h <= 720) else 720 - (h - 720),  # Vorschau: 720p ideal
                  1 if codec.startswith(("avc", "h264")) else 0,  # schnell zu dekodieren
                  1 if f.get("ext") == "mp4" else 0)
         cands.append((score, f))
     if not cands:
         return None
     f = max(cands, key=lambda x: x[0])[1]
-    return {"url": f["url"], "headers": f.get("http_headers") or {}, "height": f.get("height")}
+    return {"url": f["url"], "headers": f.get("http_headers") or {}, "height": f.get("height"),
+            "width": f.get("width")}
+
+
+def probe_size(path):
+    """Breite/Hoehe eines Videos (ffprobe, sonst ffmpeg -i)."""
+    import re as _re
+    probe = find_tool("ffprobe")
+    try:
+        if probe:
+            r = run([probe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                     "-of", "csv=p=0:s=x", path], 30)
+            m = _re.search(r"(\d+)x(\d+)", r.stdout.decode("utf-8", "replace"))
+            if m:
+                return int(m.group(1)), int(m.group(2))
+        ff = find_tool("ffmpeg")
+        if ff:
+            r = run([ff, "-hide_banner", "-i", path], 30)
+            m = _re.search(r"Video:.*?, (\d{2,5})x(\d{2,5})", r.stderr.decode("utf-8", "replace"))
+            if m:
+                return int(m.group(1)), int(m.group(2))
+    except Exception:
+        pass
+    return None
 
 
 def grab_frame(fmt, t, width=960, timeout=25):
+    """width=None: Originalgroesse."""
     """Holt per ffmpeg ein echtes Standbild aus dem Video an Stelle t (Sekunden). PIL-Bild oder None."""
     from PIL import Image
     ffmpeg = find_tool("ffmpeg")
@@ -243,8 +271,11 @@ def grab_frame(fmt, t, width=960, timeout=25):
     headers = "".join(f"{k}: {v}\r\n" for k, v in (fmt.get("headers") or {}).items())
     if headers:
         cmd += ["-headers", headers]
-    cmd += ["-i", fmt["url"], "-frames:v", "1", "-an", "-vf", f"scale={width}:-2",
-            "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "3", "pipe:1"]
+    cmd += ["-i", fmt["url"], "-frames:v", "1", "-an"]
+    if width:
+        cmd += ["-vf", f"scale={width}:-2", "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "3", "pipe:1"]
+    else:  # verlustfrei in Originalgroesse (fuer die pixelgenaue Facecam-Messung)
+        cmd += ["-f", "image2pipe", "-vcodec", "png", "-compression_level", "1", "pipe:1"]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL,
                            creationflags=NO_WINDOW)

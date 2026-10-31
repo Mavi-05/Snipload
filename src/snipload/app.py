@@ -15,7 +15,7 @@ from . import tools
 from . import updater
 from .icons import icon
 from .jobs import Job, JobQueue
-from .util import (is_youtube, load_settings, looks_like_url, open_path, resource_path, save_settings,
+from .util import (is_video_link, load_settings, looks_like_url, open_path, resource_path, save_settings,
                    show_in_folder, unique_path, win_dark_titlebar, win_flash, win_sound_done)
 from .widgets import Toaster, badge, button, dialog, label
 
@@ -504,7 +504,7 @@ class App(ctk.CTk):
             txt = self.clipboard_get().strip()
         except tk.TclError:
             return
-        if txt and txt != self.clip_seen and is_youtube(txt) and looks_like_url(txt):
+        if txt and txt != self.clip_seen and is_video_link(txt) and looks_like_url(txt):
             self.clip_seen = txt
             self.pages["download"].offer_clip(txt)
 

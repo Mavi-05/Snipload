@@ -27,6 +27,16 @@ Jede Änderung am Code baut automatisch eine neue Version (siehe *Actions*).
 - **Shorts 9:16** (1080×1920) – Bildmitte zugeschnitten oder ganzes Bild mit unscharfem Hintergrund
 - Sekundengenaues Schneiden, Dateiname mit Vorlage (`{titel}`, `{kanal}`, `{start}`, `{ende}`, `{datum}`, `{id}`)
 
+**Facecam (für Streams/VODs, auch Twitch)**
+- Snipload findet die Facecam automatisch: ~10 Bilder über den gewählten Zeitraum, Gesichtserkennung,
+  danach pixelgenaue Kantenmessung in Originalauflösung (Rahmen wird weggelassen, 640×360 & Co. rasten ein)
+- prüft den ganzen Zeitraum und warnt, wenn die Facecam irgendwo fehlt (mit Zeitpunkt)
+- **Nur Facecam**: die Facecam als eigenes Video, 1:1 in Originalgröße (z. B. 640×360 aus 2560×1440)
+- **Facecam-Split**: Shorts 1080×1920 mit Facecam oben und Gameplay unten
+- optional zusätzlich das normale Video speichern
+- Editor mit echtem Videobild, verschiebbarem Rahmen, Pixelwerten, 1-px-Feinschliff per Pfeiltasten
+  und Live-Vorschau
+
 **Arbeiten**
 - **Warteschlange**: mehrere Clips sammeln, Snipload lädt sie nacheinander; der nächste Abschnitt startet
   automatisch dort, wo der letzte aufgehört hat
@@ -52,6 +62,8 @@ Bitte nur Inhalte herunterladen, die du verwenden darfst.
 | `src/snipload/app.py` | Hauptfenster, Seitenleiste, Ereignisse |
 | `src/snipload/pages/` | die vier Seiten: Neuer Clip, Warteschlange, Verlauf, Einstellungen |
 | `src/snipload/jobs.py` | Downloads, Warteschlange, Shorts-Umwandlung (yt-dlp + ffmpeg) |
+| `src/snipload/facecam.py` | Facecam-Erkennung, pixelgenaue Messung, Split-Layout |
+| `src/snipload/pages/facecam_editor.py` | Facecam-Editor |
 | `src/snipload/updater.py` | Selbst-Update über GitHub-Releases |
 | `src/snipload/tools.py` | yt-dlp/ffmpeg finden, Video-Infos, Storyboard, Updates |
 | `src/snipload/widgets.py` | Bausteine: Zeitleiste, Zeitfeld, Knöpfe, Meldungen, Dialog |

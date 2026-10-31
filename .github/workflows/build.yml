@@ -49,9 +49,19 @@ jobs:
           --icon assets/icon.ico
           --add-data "assets/icon.ico;."
           --add-data "assets/icon.png;."
+          --add-data "assets/haarcascade_frontalface_default.xml;."
+          --add-data "assets/haarcascade_frontalface_alt2.xml;."
+          --add-data "assets/haarcascade_profileface.xml;."
           --version-file tools/version_info.txt
           --paths src
           src/main.py
+
+      - name: Selbsttest (OpenCV, Gesichtserkennung, Oberflaeche in der exe)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist/Snipload.exe" -ArgumentList "--selftest", "selftest.txt" -PassThru -Wait
+          Get-Content selftest.txt
+          if ($p.ExitCode -ne 0) { Write-Error "Selbsttest fehlgeschlagen"; exit 1 }
 
       - name: Starttest (erscheint das Fenster wirklich?)
         shell: pwsh

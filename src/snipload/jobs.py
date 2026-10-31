@@ -17,7 +17,8 @@ FMT_RE = re.compile(r"Downloading \d+ format\(s\):\s*(\S+)")
 
 QUALITY_LABELS = {"best": "Beste Qualität", "2160": "2160p (4K)", "1440": "1440p", "1080": "1080p",
                   "720": "720p", "480": "480p"}
-ASPECT_LABELS = {"original": "Original", "crop916": "Shorts 9:16", "blur916": "Shorts 9:16 + Blur"}
+ASPECT_LABELS = {"original": "Original", "crop916": "Shorts 9:16", "blur916": "Shorts + Blur",
+                 "facecam": "Facecam-Split", "facecam_raw": "Nur Facecam"}
 AUDIO_LABELS = {"mp3": "MP3", "m4a": "M4A", "wav": "WAV"}
 
 _ids = itertools.count(1)
@@ -49,6 +50,10 @@ class Job:
         self.started_at = None
         self.finished_at = None
         self.thumb = None               # Pfad zum gespeicherten Vorschaubild
+        self.layout = None              # Facecam-Split: {"cam": (x,y,w,h), "split", "gx", "cam_bottom"}
+        self.cam_px = None              # Nur Facecam: {"x","y","w","h","ref_w","ref_h"} in Pixeln
+        self.also_full = False          # Nur Facecam: zusaetzlich das normale Video behalten
+        self.extra_files = []
         self._cancel = False
         self._proc = None
 
@@ -76,8 +81,15 @@ class Job:
         if self.kind == "audio":
             return AUDIO_LABELS.get(self.audio_fmt, self.audio_fmt.upper())
         q = "Beste" if self.quality == "best" else f"{self.quality}p"
-        a = "" if self.aspect == "original" else (" · Shorts" if self.aspect == "crop916" else " · Shorts+Blur")
-        return f"MP4 · {q}{a}"
+        if self.aspect == "facecam_raw" and self.cam_px:
+            return f"Facecam 1:1 · {self.cam_px['w']}×{self.cam_px['h']}" + (" + Video" if self.also_full else "")
+        if self.also_full and self.aspect != "original":
+            extra = " + Original"
+        else:
+            extra = ""
+        a = {"original": "", "crop916": " · Shorts", "blur916": " · Shorts+Blur",
+             "facecam": " · Facecam-Split"}.get(self.aspect, "")
+        return f"MP4 · {q}{a}{extra}"
 
     @property
     def active(self):
@@ -203,6 +215,8 @@ class Runner:
 
         post = j.kind == "video" and j.aspect != "original"
         final = os.path.join(j.folder, f"{j.name}.{j.ext}")
+        if j.aspect == "facecam_raw":
+            final = os.path.join(j.folder, f"{j.name} [Facecam].mp4")
         dl_name = f"{j.name}.snipload-tmp" if post else j.name
         self.span = 0.55 if post else 0.95
         ok, dl_file = self.download(base, ffmpeg, dl_name)
@@ -213,6 +227,17 @@ class Runner:
             return self.fail(self.error_text())
         if post:
             ok = self.reframe(ffmpeg, dl_file, final)
+            if ok and j.also_full:
+                # normales Video zusaetzlich behalten
+                full = os.path.join(j.folder, f"{j.name}.mp4" if j.aspect == "facecam_raw"
+                                    else f"{j.name} [Original].mp4")
+                try:
+                    if os.path.exists(full):
+                        os.remove(full)
+                    os.replace(dl_file, full)
+                    j.extra_files.append(full)
+                except OSError:
+                    pass
             self._cleanup(dl_file)
             if j._cancel:
                 self._cleanup(final)
@@ -362,7 +387,23 @@ class Runner:
     # -------------------------------------------------- ffmpeg: Shorts 9:16
     def reframe(self, ffmpeg, src, dst):
         j = self.job
-        if j.aspect == "blur916":
+        if j.aspect == "facecam_raw" and j.cam_px:
+            # 1:1 - exakte Pixel, keine Skalierung. Falls die geladene Datei eine andere Aufloesung hat als
+            # die Analyse-Bilder, werden die Koordinaten umgerechnet.
+            from . import tools as _tools
+            size = _tools.probe_size(src) or (j.cam_px["ref_w"], j.cam_px["ref_h"])
+            sx, sy = size[0] / j.cam_px["ref_w"], size[1] / j.cam_px["ref_h"]
+            cx, cy = int(round(j.cam_px["x"] * sx)), int(round(j.cam_px["y"] * sy))
+            cw, ch = int(round(j.cam_px["w"] * sx)) // 2 * 2, int(round(j.cam_px["h"] * sy)) // 2 * 2
+            cw, ch = min(cw, size[0] - cx) // 2 * 2, min(ch, size[1] - cy) // 2 * 2
+            filt = ["-vf", f"crop={cw}:{ch}:{cx}:{cy},setsar=1,format=yuv420p"]
+            self.out_size = (cw, ch)
+        elif j.aspect == "facecam" and j.layout and j.layout.get("cam"):
+            from . import facecam
+            inf = j.info or {}
+            aspect = (inf.get("width") / inf.get("height")) if inf.get("width") and inf.get("height") else 16 / 9
+            filt = ["-filter_complex", facecam.ffmpeg_filter(j.layout, aspect), "-map", "[v]", "-map", "0:a?"]
+        elif j.aspect == "blur916":
             vf = ("split[a][b];"
                   "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
                   "boxblur=luma_radius=40:luma_power=2,eq=brightness=-0.06:saturation=1.15[bg];"
@@ -374,10 +415,12 @@ class Runner:
                   "crop=1080:1920,setsar=1,format=yuv420p")
             filt = ["-vf", vf]
         tmp_dst = dst + ".part.mp4"
+        crf = "16" if j.aspect == "facecam_raw" else "18"   # 1:1-Facecam: so nah am Original wie moeglich
         cmd = [ffmpeg, "-hide_banner", "-y", "-i", src, *filt,
-               "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
+               "-c:v", "libx264", "-preset", "medium", "-crf", crf, "-c:a", "aac", "-b:a", "192k",
                "-movflags", "+faststart", "-progress", "pipe:1", "-nostats", tmp_dst]
-        self.set(self.span + 0.02, "Wandle ins Shorts-Format um…", "")
+        label = "Schneide die Facecam aus…" if j.aspect == "facecam_raw" else "Wandle ins Shorts-Format um…"
+        self.set(self.span + 0.02, label, "")
         dur = j.duration or 0
         t0 = time.time()
         try:
@@ -400,7 +443,7 @@ class Runner:
                     if frac > 0.05 and el > 1.5:
                         rest = el * (1 - frac) / frac
                         eta = f"noch ca. {int(rest)} s" if rest < 90 else f"noch ca. {int(rest // 60) + 1} min"
-                    self.set(self.span + 0.02 + frac * (0.97 - self.span), "Wandle ins Shorts-Format um…", eta)
+                    self.set(self.span + 0.02 + frac * (0.97 - self.span), label, eta)
         rc = j._proc.wait()
         j._proc = None
         if rc == 0 and os.path.exists(tmp_dst):
