@@ -198,6 +198,68 @@ def pick_storyboard(info):
     return sbs[0]
 
 
+def pick_preview_storyboard(info, strip_fmt):
+    """Hoechstaufloesendes Storyboard fuer die grosse Vorschau (nur, wenn schaerfer als der Filmstreifen)."""
+    sbs = [f for f in info.get("formats") or []
+           if str(f.get("format_id", "")).startswith("sb") and f.get("fragments")
+           and f.get("rows") and f.get("columns") and f.get("width") and f.get("fps")]
+    if not sbs:
+        return None
+    best = max(sbs, key=lambda f: f.get("width") or 0)
+    if strip_fmt is not None and (best.get("width") or 0) <= (strip_fmt.get("width") or 0):
+        return None
+    return best
+
+
+def pick_frame_format(info):
+    """Video-Format fuer HD-Standbilder: direkte https-Datei, hoechstens 720p, am liebsten H.264."""
+    cands = []
+    for f in info.get("formats") or []:
+        if f.get("vcodec") in (None, "none") or not f.get("url"):
+            continue
+        if f.get("protocol") not in ("https", "http"):
+            continue
+        h = f.get("height") or 0
+        if not h or h > 1080:
+            continue
+        codec = (f.get("vcodec") or "").lower()
+        score = (h if h <= 720 else 720 - (h - 720),            # 720p ideal
+                 1 if codec.startswith(("avc", "h264")) else 0,  # schnell zu dekodieren
+                 1 if f.get("ext") == "mp4" else 0)
+        cands.append((score, f))
+    if not cands:
+        return None
+    f = max(cands, key=lambda x: x[0])[1]
+    return {"url": f["url"], "headers": f.get("http_headers") or {}, "height": f.get("height")}
+
+
+def grab_frame(fmt, t, width=960, timeout=25):
+    """Holt per ffmpeg ein echtes Standbild aus dem Video an Stelle t (Sekunden). PIL-Bild oder None."""
+    from PIL import Image
+    ffmpeg = find_tool("ffmpeg")
+    if not ffmpeg or not fmt:
+        return None
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-ss", f"{max(0.0, t):.3f}"]
+    headers = "".join(f"{k}: {v}\r\n" for k, v in (fmt.get("headers") or {}).items())
+    if headers:
+        cmd += ["-headers", headers]
+    cmd += ["-i", fmt["url"], "-frames:v", "1", "-an", "-vf", f"scale={width}:-2",
+            "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "3", "pipe:1"]
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL,
+                           creationflags=NO_WINDOW)
+    except Exception:
+        return None
+    if r.returncode != 0 or not r.stdout:
+        return None
+    try:
+        img = Image.open(io.BytesIO(r.stdout))
+        img.load()
+        return img.convert("RGB")
+    except Exception:
+        return None
+
+
 def thumbnail_urls(info):
     vid = info.get("id")
     urls = []
@@ -247,7 +309,7 @@ def load_thumbnail(info, save_to=None):
 class Storyboard:
     """Laedt die Storyboard-Kacheln im Hintergrund und schneidet Einzelbilder heraus."""
 
-    def __init__(self, fmt, duration, on_update=None):
+    def __init__(self, fmt, duration, on_update=None, lazy=False):
         self.fmt = fmt
         self.duration = float(duration or 0)
         self.cols = int(fmt["columns"])
@@ -261,7 +323,47 @@ class Storyboard:
         self.on_update = on_update
         self.cancelled = False
         self.loaded = 0
-        threading.Thread(target=self._load_all, daemon=True).start()
+        self.lazy = lazy
+        if lazy:  # Blaetter nur auf Anfrage laden (das zuletzt angefragte zuerst)
+            self._wanted = []
+            self._event = threading.Event()
+            threading.Thread(target=self._load_lazy, daemon=True).start()
+        else:
+            threading.Thread(target=self._load_all, daemon=True).start()
+
+    def has(self, t):
+        return self.sheets.get(self.frame_index(t) // self.per_sheet) is not None
+
+    def request(self, t):
+        """Lazy-Modus: Blatt fuer Zeitpunkt t (und die Nachbarn) zum Laden vormerken."""
+        if not self.lazy:
+            return
+        i = self.frame_index(t) // self.per_sheet
+        for j in (i + 1, i - 1, i):  # i zuletzt = hoechste Prioritaet
+            if 0 <= j < len(self.urls) and j not in self.sheets and j in self._wanted:
+                self._wanted.remove(j)
+            if 0 <= j < len(self.urls) and j not in self.sheets:
+                self._wanted.append(j)
+        del self._wanted[:-12]
+        self._event.set()
+
+    def _load_lazy(self):
+        from PIL import Image
+        while not self.cancelled:
+            if not self._wanted:
+                self._event.wait(0.5)
+                self._event.clear()
+                continue
+            i = self._wanted.pop()
+            if i in self.sheets:
+                continue
+            try:
+                img = Image.open(io.BytesIO(download_bytes(self.urls[i], 12)))
+                img.load()
+                self.sheets[i] = img.convert("RGB")
+            except Exception:
+                self.sheets[i] = None
+            self.loaded += 1
 
     @property
     def per_sheet(self):

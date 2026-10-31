@@ -46,6 +46,14 @@ class DownloadPage(ctk.CTkFrame):
         self.preview_cache = {}
         self.hover_t = None
         self._sb_seen = -1
+        self.sb_hi = None
+        self._hi_seen = -1
+        self.frame_fmt = None
+        self.hd_cache = {}
+        self.hd_want = None
+        self.hd_due = 0.0
+        self.hd_busy = False
+        self.cur_t = None
         self._shown_state = None
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -362,9 +370,23 @@ class DownloadPage(ctk.CTkFrame):
             if looks_like_url(url):
                 self._load(url)
         self.timeline.storyboard_progress()
-        if self.storyboard is not None and self.hover_t is None and self._sb_seen != self.storyboard.loaded:
+        changed = False
+        if self.storyboard is not None and self._sb_seen != self.storyboard.loaded:
             self._sb_seen = self.storyboard.loaded
-            self._show_preview(None)
+            changed = True
+        if self.sb_hi is not None and self._hi_seen != self.sb_hi.loaded:
+            self._hi_seen = self.sb_hi.loaded
+            changed = True
+        if changed:
+            self._show_preview(self.hover_t)
+        # HD-Standbild holen, sobald die Maus kurz still steht
+        if (self.hd_want is not None and not self.hd_busy and self.frame_fmt
+                and time.time() >= self.hd_due):
+            t = self.hd_want
+            self.hd_want = None
+            self.hd_busy = True
+            fmt, gen = self.frame_fmt, self.info_gen
+            threading.Thread(target=self._hd_worker, args=(fmt, t, gen), daemon=True).start()
         self._refresh_bar()
 
     def _force_load(self):
@@ -379,6 +401,14 @@ class DownloadPage(ctk.CTkFrame):
     def _reset_video(self, loading=False):
         if self.storyboard is not None:
             self.storyboard.cancelled = True
+        if self.sb_hi is not None:
+            self.sb_hi.cancelled = True
+        self.sb_hi = None
+        self._hi_seen = -1
+        self.frame_fmt = None
+        self.hd_cache = {}
+        self.hd_want = None
+        self.cur_t = None
         self.info = None
         self.summary = None
         self.storyboard = None
@@ -489,6 +519,12 @@ class DownloadPage(ctk.CTkFrame):
                 self.timeline.set_storyboard(self.storyboard)
             except Exception:
                 self.storyboard = None
+        try:
+            hi = tools.pick_preview_storyboard(info, sbf) if dur else None
+            self.sb_hi = tools.Storyboard(hi, dur, lazy=True) if hi else None
+        except Exception:
+            self.sb_hi = None
+        self.frame_fmt = tools.pick_frame_format(info) if dur else None
         # Startbereich festlegen
         t = start_from_url(self.get_url())
         if t is not None and dur and t < dur:
@@ -510,7 +546,54 @@ class DownloadPage(ctk.CTkFrame):
         self._show_preview(None)
 
     # ================================================================ Vorschau
+    @staticmethod
+    def _hd_key(t):
+        return round(t * 2) / 2  # auf halbe Sekunden genau
+
+    def _hd_worker(self, fmt, t, gen):
+        img = tools.grab_frame(fmt, self._hd_key(t))
+        self.app.post(lambda: self._hd_done(gen, t, img))
+
+    def _hd_done(self, gen, t, img):
+        self.hd_busy = False
+        if gen != self.info_gen:
+            return
+        key = self._hd_key(t)
+        if img is None:
+            self.frame_fmt = None if not self.hd_cache else self.frame_fmt  # klappt gar nicht -> aufgeben
+            return
+        self.hd_cache[key] = ctk.CTkImage(rounded_image(img, PREV_W * 2, PREV_H * 2, 20), size=(PREV_W, PREV_H))
+        while len(self.hd_cache) > 60:
+            self.hd_cache.pop(next(iter(self.hd_cache)))
+        if self.cur_t is not None and self._hd_key(self.cur_t) == key:
+            self._show_preview(self.hover_t)
+
     def _preview_image(self, t):
+        """Bestes verfuegbares Bild fuer Stelle t: HD-Standbild > grosses Storyboard > kleines > Vorschaubild."""
+        if t is not None:
+            hd = self.hd_cache.get(self._hd_key(t))
+            if hd is not None:
+                return hd, "hd"
+            hi = self.sb_hi
+            if hi is not None:
+                if hi.has(t):
+                    key = ("hi", hi.frame_index(t))
+                    if key not in self.preview_cache:
+                        fr = hi.frame(t, nearest=False)
+                        if fr is not None:
+                            self.preview_cache[key] = ctk.CTkImage(
+                                rounded_image(fr, PREV_W * 2, PREV_H * 2, 20), size=(PREV_W, PREV_H))
+                    if key in self.preview_cache:
+                        return self.preview_cache[key], "sb"
+                else:
+                    hi.request(t)
+            img = self._preview_image_small(t)
+            if img is not None:
+                return img, "sb"
+        img = self._preview_image_small(None)
+        return (img, "thumb") if img is not None else (None, None)
+
+    def _preview_image_small(self, t):
         if self.storyboard is not None and t is not None:
             idx = self.storyboard.frame_index(t)
             key = ("sb", idx)
@@ -540,16 +623,21 @@ class DownloadPage(ctk.CTkFrame):
         show_t = t
         if t is None and self.storyboard is not None:
             show_t = self.timeline.a if self.timeline.active == "a" else self.timeline.b
-        img = self._preview_image(show_t) if show_t is not None else self._preview_image(None)
-        if img is None:
-            img = self._preview_image(None)
+        if show_t is None and self.frame_fmt is not None:
+            show_t = self.timeline.a if self.timeline.active == "a" else self.timeline.b
+        img, quality = self._preview_image(show_t)
         if img is not None:
             self.preview.configure(image=img, fg_color=T.SURFACE)
-        if show_t is not None and self.storyboard is not None:
-            self.preview_cap.configure(text=f"  {fmt_short(show_t)}  ")
+        self.cur_t = show_t
+        if show_t is not None and quality in ("hd", "sb"):
+            self.preview_cap.configure(text=f"  {fmt_short(show_t)}" + ("  ·  HD  " if quality == "hd" else "  "))
             self.preview_cap.place(x=8, y=8, anchor="nw")
         else:
             self.preview_cap.place_forget()
+        # nicht scharf? -> HD-Standbild anfordern, sobald die Maus kurz stillsteht
+        if show_t is not None and quality != "hd" and self.frame_fmt is not None:
+            self.hd_want = show_t
+            self.hd_due = time.time() + 0.45
 
     def _timeline_hover(self, t):
         self.hover_t = t

@@ -17,7 +17,8 @@ Jede Änderung am Code baut automatisch eine neue Version (siehe *Actions*).
 - Link kopieren – Snipload erkennt ihn automatisch (auch später: „Neuer Link in der Zwischenablage“)
 - Vorschaubild, Titel, Kanal, Aufrufe und Datum des Videos
 - **Filmstreifen-Zeitleiste** wie im Videoschnitt: Start/Ende-Griffe ziehen, Mitte verschiebt den ganzen Ausschnitt,
-  beim Darüberfahren zeigt die Vorschau das Bild an genau dieser Stelle
+  beim Darüberfahren zeigt die Vorschau das Bild an genau dieser Stelle – erst sofort aus dem Storyboard,
+  nach einem kurzen Moment als gestochen scharfes HD-Standbild direkt aus dem Video
 - Zeitfelder mit −/+, Mausrad und Pfeiltasten (Umschalt = 5 s, Alt = 0,1 s, Tab wechselt den Griff)
 - Links mit Zeitangabe (`&t=125`, `?t=1m30s`) setzen den Start automatisch
 
