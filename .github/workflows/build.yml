@@ -73,7 +73,7 @@ jobs:
             $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
             $g = [System.Drawing.Graphics]::FromImage($bmp)
             $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-            $bmp.Save("starttest.png")
+            $bmp.Save("Snipload-Vorschau.png")
             Write-Host "Snipload-Fenster ist erschienen - Starttest bestanden."
           }
           Get-Process -Name Snipload -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -81,13 +81,6 @@ jobs:
             Write-Error "Snipload hat kein Fenster geoeffnet (Absturz oder Fehlermeldung beim Start)."
             exit 1
           }
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: starttest-screenshot
-          path: starttest.png
-          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         with:
@@ -107,4 +100,6 @@ jobs:
             dann auf „Weitere Informationen" und „Trotzdem ausfuehren" klicken.
 
             Aenderung: ${{ github.event.head_commit.message }}
-          files: dist/Snipload.exe
+          files: |
+            dist/Snipload.exe
+            Snipload-Vorschau.png

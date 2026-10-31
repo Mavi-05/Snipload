@@ -220,6 +220,9 @@ _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 def safe_filename(name, limit=150):
     name = _BAD.sub("", name)
+    # Emojis & Co. raus: viele Programme (Schnitt, Upload, aeltere Tools) kommen damit nicht klar
+    name = "".join(ch for ch in name if ord(ch) < 0x2190 or 0x2E80 <= ord(ch) < 0xD800 or 0xF900 <= ord(ch) < 0xFE00)
+    name = name.replace("‍", "")
     name = re.sub(r"\s+", " ", name).strip().rstrip(". ")
     if not name:
         name = "Clip"
