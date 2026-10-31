@@ -230,6 +230,13 @@ class DownloadPage(ctk.CTkFrame):
         self.aspect_seg.set(ASPECT_LABELS.get(self.cfg.get("aspect"), "Original"))
         self.aspect_hint = label(right, "", 12, T.TEXT_3, anchor="w", justify="left", wraplength=700)
         self.aspect_hint.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+
+        def rewrap_right(e):
+            k = ctk.ScalingTracker.get_widget_scaling(right) or 1
+            w = max(200, int(e.width / k) - 8)
+            self.aspect_hint.configure(wraplength=w)
+            self.fc_text.configure(wraplength=max(180, w - 260))
+        right.bind("<Configure>", rewrap_right)
         self.also_var = tk.BooleanVar(value=bool(self.cfg.get("also_full", False)))
         self.also_sw = switch(right, "Zusätzlich das normale Video speichern", self.also_var, self._also_changed)
         self.fc_row = ctk.CTkFrame(right, fg_color=T.SURFACE_2, corner_radius=T.RADIUS_SM, border_width=1,
@@ -785,13 +792,15 @@ class DownloadPage(ctk.CTkFrame):
                            "im gewählten Zeitraum automatisch.",
                 "facecam_raw": "Nur die Facecam als eigenes Video – 1:1 in Originalgröße, pixelgenau "
                                "ausgeschnitten, ohne Rahmen. Dafür lädt Snipload das Video in bester Qualität.",
+                "orig_facecam": "Zwei Dateien aus einem Download: das normale Video und die Facecam 1:1 in "
+                                "Originalgröße (pixelgenau, ohne Rahmen). Lädt in bester Qualität.",
             }.get(asp, ""))
-            if asp == "facecam_raw":
+            if asp in ("facecam_raw", "orig_facecam"):
                 self.q_menu.set(QUALITY_LABELS["best"])
                 self.q_menu.configure(state="disabled")
             else:
                 self.q_menu.configure(state="normal")
-            if asp in ("crop916", "blur916", "facecam", "facecam_raw"):
+            if asp in ("crop916", "blur916", "facecam", "facecam_raw"):  # bei "Original + Facecam" schon drin
                 self.also_sw.grid(row=4, column=0, sticky="w", pady=(10, 0))
             else:
                 self.also_sw.grid_forget()
@@ -809,6 +818,8 @@ class DownloadPage(ctk.CTkFrame):
         if self.kind_seg.get() == "Nur Ton":
             return None
         a = _key_for(ASPECT_LABELS, self.aspect_seg.get())
+        if a == "orig_facecam":
+            return "facecam_raw"   # gleiche Facecam-Messung, nur mit normalem Video dazu
         return a if a in ("facecam", "facecam_raw") else None
 
     def _facecam_selected(self):
@@ -1082,6 +1093,9 @@ class DownloadPage(ctk.CTkFrame):
                   _key_for(ASPECT_LABELS, self.aspect_seg.get()) or "original",
                   bool(self.cfg.get("exact", True)), folder, name)
         job.thumb = self.thumb_path
+        orig_plus_cam = job.aspect == "orig_facecam"
+        if orig_plus_cam:  # ein Download, zwei Dateien: normales Video + Facecam 1:1
+            job.aspect = "facecam_raw" if kind == "video" else "original"
         if job.aspect in ("facecam", "facecam_raw"):
             job.layout = dict(self.cam["layout"])
             if job.aspect == "facecam_raw":
@@ -1092,7 +1106,7 @@ class DownloadPage(ctk.CTkFrame):
                 job.cam_px = dict(px)
                 job.quality = "best"
         if job.aspect != "original" and job.kind == "video":
-            job.also_full = bool(self.also_var.get())
+            job.also_full = True if orig_plus_cam else bool(self.also_var.get())
         return job
 
     def download(self):
@@ -1177,7 +1191,8 @@ class DownloadPage(ctk.CTkFrame):
             asp = self.aspect_seg.get()
             if asp != "Original":
                 fmt += f" · {asp}"
-        if not audio and self.aspect_seg.get() != "Original" and self.also_var.get():
+        if (not audio and self.aspect_seg.get() not in ("Original", "Original + Facecam")
+                and self.also_var.get()):
             fmt += " + normales Video"
         folder = os.path.basename(self.cfg.get("folder") or "") or self.cfg.get("folder")
         return f"Clip {rng}", f"{fmt}  →  {folder}"

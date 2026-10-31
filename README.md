@@ -31,6 +31,7 @@ Jede Änderung am Code baut automatisch eine neue Version (siehe *Actions*).
 - Snipload findet die Facecam automatisch: ~10 Bilder über den gewählten Zeitraum, Gesichtserkennung,
   danach pixelgenaue Kantenmessung in Originalauflösung (Rahmen wird weggelassen, 640×360 & Co. rasten ein)
 - prüft den ganzen Zeitraum und warnt, wenn die Facecam irgendwo fehlt (mit Zeitpunkt)
+- **Original + Facecam**: ein Download, zwei Dateien – das normale Video und die Facecam 1:1
 - **Nur Facecam**: die Facecam als eigenes Video, 1:1 in Originalgröße (z. B. 640×360 aus 2560×1440)
 - **Facecam-Split**: Shorts 1080×1920 mit Facecam oben und Gameplay unten
 - optional zusätzlich das normale Video speichern

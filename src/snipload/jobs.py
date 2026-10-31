@@ -17,8 +17,8 @@ FMT_RE = re.compile(r"Downloading \d+ format\(s\):\s*(\S+)")
 
 QUALITY_LABELS = {"best": "Beste Qualität", "2160": "2160p (4K)", "1440": "1440p", "1080": "1080p",
                   "720": "720p", "480": "480p"}
-ASPECT_LABELS = {"original": "Original", "crop916": "Shorts 9:16", "blur916": "Shorts + Blur",
-                 "facecam": "Facecam-Split", "facecam_raw": "Nur Facecam"}
+ASPECT_LABELS = {"original": "Original", "orig_facecam": "Original + Facecam", "facecam_raw": "Nur Facecam",
+                 "crop916": "Shorts 9:16", "blur916": "Shorts + Blur", "facecam": "Facecam-Split"}
 AUDIO_LABELS = {"mp3": "MP3", "m4a": "M4A", "wav": "WAV"}
 
 _ids = itertools.count(1)
@@ -82,7 +82,8 @@ class Job:
             return AUDIO_LABELS.get(self.audio_fmt, self.audio_fmt.upper())
         q = "Beste" if self.quality == "best" else f"{self.quality}p"
         if self.aspect == "facecam_raw" and self.cam_px:
-            return f"Facecam 1:1 · {self.cam_px['w']}×{self.cam_px['h']}" + (" + Video" if self.also_full else "")
+            size = f"{self.cam_px['w']}×{self.cam_px['h']}"
+            return f"Original + Facecam {size}" if self.also_full else f"Facecam 1:1 · {size}"
         if self.also_full and self.aspect != "original":
             extra = " + Original"
         else:
@@ -252,7 +253,8 @@ class Runner:
             j.size = 0
         j.status = Job.DONE
         secs = time.time() - j.started_at
-        self.set(1.0, "Fertig", f"in {secs:.0f} s")
+        files = f"{1 + len(j.extra_files)} Dateien · " if j.extra_files else ""
+        self.set(1.0, "Fertig", f"{files}in {secs:.0f} s")
 
     def cancelled(self):
         self.job.status = Job.CANCELLED
