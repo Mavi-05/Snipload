@@ -159,7 +159,8 @@ def install(staged, restart=True):
         raise UpdateError("Selbst-Update geht nur in der fertigen exe.")
     script = os.path.join(tempfile.gettempdir(), "snipload_update.cmd")
     log = os.path.join(tempfile.gettempdir(), "snipload_update.log")
-    start_line = f'start "" "{exe}"' if restart else "rem kein Neustart"
+    folder = os.path.dirname(exe) or "."
+    start_line = f'start "" /d "{folder}" "{exe}"' if restart else "rem kein Neustart"
     # Wartet, bis die alte exe frei ist (max. ~60 s), tauscht sie aus und startet die neue.
     text = f"""@echo off
 chcp 65001 >nul
@@ -173,6 +174,14 @@ ping -n 2 127.0.0.1 >nul
 goto retry
 :done
 echo ok > "{log}"
+rem Interne Variablen der alten exe entfernen - sonst sucht die neue ihre Python-DLL
+rem im (schon geloeschten) Temp-Ordner der alten ("Failed to load Python DLL").
+for /f "delims==" %%v in ('set _PYI 2^>nul') do set "%%v="
+for /f "delims==" %%v in ('set _MEI 2^>nul') do set "%%v="
+set "TCL_LIBRARY="
+set "TK_LIBRARY="
+set "PYINSTALLER_RESET_ENVIRONMENT=1"
+ping -n 2 127.0.0.1 >nul
 {start_line}
 goto end
 :fail
