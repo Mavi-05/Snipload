@@ -304,41 +304,88 @@ def _fmt(t):
 
 
 # ================================================================ Layout fuer den Export
-DEFAULT_LAYOUT = {"cam": None, "split": 0.40, "gx": 0.5, "cam_bottom": False}
+# split: Anteil der Facecam an der Bildhoehe; gzoom/czoom: 1 = Flaeche fuellen, kleiner = ganzes Bild mit
+# unscharfem Rand, groesser = hineinzoomen; gx/gy und cx/cy: Lage des Ausschnitts (0..1, 0.5 = Mitte).
+DEFAULT_LAYOUT = {"cam": None, "split": 0.40, "gx": 0.5, "gy": 0.5, "gzoom": 1.0,
+                  "cx": 0.5, "cy": 0.5, "czoom": 1.0, "cam_bottom": False}
+OUT_W, OUT_H = 1080, 1920
+SPLIT_MIN, SPLIT_MAX = 0.18, 0.65
+ZOOM_MAX = 3.0
 
 
-def layout_geometry(layout, aspect=16 / 9, out_w=1080, out_h=1920):
-    """Berechnet die beiden Ausschnitte (normiert) und die Hoehen im 1080x1920-Bild."""
-    split = min(0.65, max(0.2, float(layout.get("split", 0.4))))
+def _clamp(v, lo, hi):
+    return lo if v < lo else hi if v > hi else v
+
+
+def _f(layout, key, default):
+    try:
+        v = layout.get(key, default)
+        return default if v is None else float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def zoom_range(src, aspect, W, H):
+    """Kleinster Zoom (ganzes Bild sichtbar) und groesster Zoom fuer eine Flaeche W x H."""
+    sw, sh = src[2] * aspect, src[3]
+    cover = max(W / sw, H / sh)
+    fit = min(W / sw, H / sh)
+    return fit / cover, ZOOM_MAX
+
+
+def panel_plan(src, aspect, W, H, zoom=1.0, px=0.5, py=0.5):
+    """Wie ein Bereich des Videos (src, normiert) in eine Flaeche W x H kommt.
+
+    Rueckgabe: crop (normiert, sichtbarer Teil des Videos), size (Pixel, in die der Teil skaliert wird),
+    pos (Lage in der Flaeche), bg (True = Rest der Flaeche mit unscharfem Bild fuellen), zoom, zmin."""
+    sx, sy, sw, sh = src
+    SW, SH = sw * aspect, sh                    # Masse in "Bildhoehen"
+    cover = max(W / SW, H / SH)
+    zmin, zmax = zoom_range(src, aspect, W, H)
+    z = _clamp(float(zoom), zmin, zmax)
+    s = cover * z                               # Ausgabepixel je Bildhoehe
+    win_w, win_h = W / s, H / s
+
+    def axis(src0, length, win, out, p):
+        if win <= length + 1e-9:                # Ausschnitt passt hinein -> verschiebbar
+            off = (length - win) * _clamp(p, 0.0, 1.0)
+            return src0 + off, win, out, 0
+        size = int(round(length * s / 2)) * 2   # ganzes Bild, mittig, Rest unscharf
+        size = max(2, min(size, out))
+        return src0, length, size, (out - size) // 2
+    x0, cw_, ow, ox = axis(sx * aspect, SW, win_w, W, px)
+    y0, ch_, oh, oy = axis(sy, SH, win_h, H, py)
+    crop = (x0 / aspect, y0, cw_ / aspect, ch_)
+    return {"crop": crop, "size": (ow, oh), "pos": (ox, oy), "bg": ow < W or oh < H,
+            "zoom": z, "zmin": zmin, "zmax": zmax, "scale": s}
+
+
+def layout_geometry(layout, aspect=16 / 9, out_w=OUT_W, out_h=OUT_H):
+    """Berechnet beide Flaechen (Facecam und Gameplay) des 1080x1920-Bildes."""
+    split = _clamp(_f(layout, "split", 0.4), SPLIT_MIN, SPLIT_MAX)
     hf = int(round(out_h * split / 2)) * 2
     hg = out_h - hf
-    cx, cy, cw, ch = layout["cam"]
-    # Facecam-Ausschnitt auf das Ziel-Seitenverhaeltnis bringen (mittig, ohne Verzerrung)
-    target = out_w / hf
-    px_w, px_h = cw * aspect, ch  # in "Bildhoehen"
-    if px_w / px_h > target:
-        nw = px_h * target / aspect
-        cam = (cx + (cw - nw) / 2, cy, nw, ch)
-    else:
-        nh = px_w / target
-        cam = (cx, cy + (ch - nh) / 2, cw, nh)
-    # Gameplay-Ausschnitt: volle Hoehe, Breite passend, horizontal verschiebbar
-    tg = out_w / hg
-    gw = tg / aspect
-    if gw <= 1:
-        gx = (1 - gw) * min(1.0, max(0.0, float(layout.get("gx", 0.5))))
-        game = (gx, 0.0, gw, 1.0)
-    else:  # sehr schmales Video: Hoehe kuerzen
-        gh = aspect / tg
-        game = (0.0, (1 - gh) / 2, 1.0, gh)
-    return {"cam": cam, "game": game, "hf": hf, "hg": hg, "cam_bottom": bool(layout.get("cam_bottom"))}
+    cam_src = tuple(layout["cam"])
+    cam = panel_plan(cam_src, aspect, out_w, hf, _f(layout, "czoom", 1.0),
+                     _f(layout, "cx", 0.5), _f(layout, "cy", 0.5))
+    game = panel_plan((0.0, 0.0, 1.0, 1.0), aspect, out_w, hg, _f(layout, "gzoom", 1.0),
+                      _f(layout, "gx", 0.5), _f(layout, "gy", 0.5))
+    return {"cam": cam["crop"], "game": game["crop"], "cam_plan": cam, "game_plan": game, "cam_src": cam_src,
+            "hf": hf, "hg": hg, "w": out_w, "cam_bottom": bool(layout.get("cam_bottom"))}
 
 
-def suggest_gx(cam, aspect=16 / 9, split=0.40):
+def auto_split(cam, aspect=16 / 9):
+    """Facecam-Hoehe so, dass die erkannte Facecam ganz und ohne Rand in die Breite passt."""
+    ca = cam[2] * aspect / max(1e-6, cam[3])
+    split = (OUT_W / ca) / OUT_H
+    return round(_clamp(split, 0.22, 0.50), 3)
+
+
+def suggest_gx(cam, aspect=16 / 9, split=0.40, gzoom=1.0):
     """Gameplay-Ausschnitt so legen, dass die Facecam darin moeglichst nicht noch einmal auftaucht."""
-    g = layout_geometry({"cam": cam, "split": split, "gx": 0.5}, aspect)
+    g = layout_geometry({"cam": cam, "split": split, "gx": 0.5, "gzoom": gzoom}, aspect)
     gw = g["game"][2]
-    if gw >= 1:
+    if gw >= 0.999:
         return 0.5
     cx0, cx1 = cam[0], cam[0] + cam[2]
     margin = 0.02  # Abstand, damit auch der Rand/Rahmen der Facecam nicht mit hineinrutscht
@@ -352,41 +399,80 @@ def suggest_gx(cam, aspect=16 / 9, split=0.40):
     return round(min(0.8, max(0.2, gx)), 3)
 
 
-def ffmpeg_filter(layout, aspect=16 / 9):
-    g = layout_geometry(layout, aspect)
+def suggest_layout(cam, aspect=16 / 9, sizes=None, cam_bottom=False):
+    """Automatisches Layout zur erkannten Facecam. sizes: vom Nutzer gemerkte Groessen (split/gzoom/czoom)."""
+    sizes = sizes or {}
+    split = float(sizes["split"]) if sizes.get("split") else auto_split(cam, aspect)
+    gzoom = float(sizes.get("gzoom") or 1.0)
+    czoom = float(sizes.get("czoom") or 1.0)
+    return {"cam": tuple(cam), "split": split, "gzoom": gzoom, "czoom": czoom,
+            "gx": suggest_gx(cam, aspect, split, gzoom), "gy": 0.5, "cx": 0.5, "cy": 0.5,
+            "cam_bottom": bool(sizes.get("cam_bottom", cam_bottom))}
 
+
+def _ffmpeg_panel(inp, out, src, plan, W, H):
     def crop(b):
         x, y, w, h = b
-        return (f"crop=w=trunc(iw*{w:.5f}/2)*2:h=trunc(ih*{h:.5f}/2)*2:"
-                f"x=trunc(iw*{x:.5f}):y=trunc(ih*{y:.5f})")
-    top, bot = ("game", "cam") if g["cam_bottom"] else ("cam", "game")
-    h_top = g["hf"] if top == "cam" else g["hg"]
-    h_bot = g["hg"] if top == "cam" else g["hf"]
-    return (f"[0:v]split=2[a][b];"
-            f"[a]{crop(g[top])},scale=1080:{h_top}:flags=lanczos,setsar=1[t];"
-            f"[b]{crop(g[bot])},scale=1080:{h_bot}:flags=lanczos,setsar=1[u];"
-            f"[t][u]vstack=inputs=2,format=yuv420p[v]")
+        return (f"crop=w=trunc(iw*{w:.6f}/2)*2:h=trunc(ih*{h:.6f}/2)*2:"
+                f"x=trunc(iw*{x:.6f}):y=trunc(ih*{y:.6f})")
+    if not plan["bg"]:
+        return f"[{inp}]{crop(plan['crop'])},scale={W}:{H}:flags=lanczos,setsar=1[{out}]"
+    ow, oh = plan["size"]
+    ox, oy = plan["pos"]
+    return (f"[{inp}]split=2[{inp}1][{inp}2];"
+            f"[{inp}1]{crop(src)},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+            f"boxblur=20:2,eq=brightness=-0.06[{inp}bg];"
+            f"[{inp}2]{crop(plan['crop'])},scale={ow}:{oh}:flags=lanczos,setsar=1[{inp}fg];"
+            f"[{inp}bg][{inp}fg]overlay={ox}:{oy},setsar=1[{out}]")
+
+
+def ffmpeg_filter(layout, aspect=16 / 9):
+    g = layout_geometry(layout, aspect)
+    W = g["w"]
+    cam = _ffmpeg_panel("a", "fc", g["cam_src"], g["cam_plan"], W, g["hf"])
+    game = _ffmpeg_panel("b", "gp", (0.0, 0.0, 1.0, 1.0), g["game_plan"], W, g["hg"])
+    order = "[gp][fc]" if g["cam_bottom"] else "[fc][gp]"
+    return f"[0:v]split=2[a][b];{cam};{game};{order}vstack=inputs=2,format=yuv420p[v]"
+
+
+def _pil_panel(img, src, plan, W, H, k):
+    from PIL import Image, ImageFilter, ImageEnhance
+    IW, IH = img.size
+    tw, th = max(1, int(round(W * k))), max(1, int(round(H * k)))
+
+    def cut(b):
+        x, y, w, h = b
+        return img.crop((int(x * IW), int(y * IH), max(int(x * IW) + 1, int((x + w) * IW)),
+                         max(int(y * IH) + 1, int((y + h) * IH))))
+    if not plan["bg"]:
+        return cut(plan["crop"]).resize((tw, th), Image.LANCZOS)
+    s = cut(src)
+    sc = max(tw / s.size[0], th / s.size[1])
+    bg = s.resize((max(tw, int(s.size[0] * sc + 1)), max(th, int(s.size[1] * sc + 1))), Image.BILINEAR)
+    l, t = (bg.size[0] - tw) // 2, (bg.size[1] - th) // 2
+    bg = bg.crop((l, t, l + tw, t + th)).filter(ImageFilter.GaussianBlur(max(2, 14 * k * 2)))
+    bg = ImageEnhance.Brightness(bg).enhance(0.88)
+    ow, oh = plan["size"]
+    fg = cut(plan["crop"]).resize((max(1, int(round(ow * k))), max(1, int(round(oh * k)))), Image.LANCZOS)
+    bg.paste(fg, (int(round(plan["pos"][0] * k)), int(round(plan["pos"][1] * k))))
+    return bg
 
 
 def render_preview(pil_frame, layout, height=480):
-    """Kleine 9:16-Vorschau des fertigen Shorts (PIL)."""
+    """9:16-Vorschau des fertigen Shorts (PIL) – rechnet genau wie der Export."""
     from PIL import Image
     W, H = pil_frame.size
     aspect = W / H
     g = layout_geometry(layout, aspect)
-    out_w, out_h = int(height * 1080 / 1920), height
-    k = height / 1920
+    out_w, out_h = int(round(height * OUT_W / OUT_H)), height
+    k = height / OUT_H
     out = Image.new("RGB", (out_w, out_h))
-
-    def part(b, h_px):
-        x, y, w, h = b
-        crop = pil_frame.crop((int(x * W), int(y * H), int((x + w) * W), int((y + h) * H)))
-        return crop.resize((out_w, max(1, int(round(h_px * k)))), Image.LANCZOS)
-    a = part(g["cam"], g["hf"])
-    b = part(g["game"], g["hg"])
+    a = _pil_panel(pil_frame, g["cam_src"], g["cam_plan"], g["w"], g["hf"], k)
+    b = _pil_panel(pil_frame, (0.0, 0.0, 1.0, 1.0), g["game_plan"], g["w"], g["hg"], k)
     first, second = (b, a) if g["cam_bottom"] else (a, b)
-    out.paste(first, (0, 0))
-    out.paste(second, (0, first.size[1]))
+    out.paste(first.resize((out_w, first.size[1])), (0, 0))
+    y2 = int(round((g["hg"] if g["cam_bottom"] else g["hf"]) * k))
+    out.paste(second.resize((out_w, out_h - y2)), (0, y2))
     return out
 
 

@@ -789,7 +789,8 @@ class DownloadPage(ctk.CTkFrame):
                 "blur916": "Hochformat 1080×1920: ganzes Bild in der Mitte, darüber und darunter unscharfer "
                            "Hintergrund.",
                 "facecam": "Hochformat 1080×1920: Facecam oben, Gameplay darunter. Snipload sucht die Facecam "
-                           "im gewählten Zeitraum automatisch.",
+                           "automatisch und passt die Größen an – unter „Anpassen“ machst du Facecam und "
+                           "Gameplay größer oder kleiner.",
                 "facecam_raw": "Nur die Facecam als eigenes Video – 1:1 in Originalgröße, pixelgenau "
                                "ausgeschnitten, ohne Rahmen. Dafür lädt Snipload das Video in bester Qualität.",
                 "orig_facecam": "Zwei Dateien aus einem Download: das normale Video und die Facecam 1:1 in "
@@ -910,12 +911,13 @@ class DownloadPage(ctk.CTkFrame):
         self.cam.update(busy=False, frames=[(t, im) for t, im in frames if im is not None], result=res)
         lay = self.cam.get("layout")
         if res.get("ok") and not res.get("fullscreen") and not (lay and lay.get("manual")):
-            split = float(self.cfg.get("fc_split", 0.40))
             px = res.get("px")
             box = facecam.px_to_norm(px) if px else res["box"]
-            self.cam["layout"] = {"cam": box, "split": split,
-                                  "gx": facecam.suggest_gx(box, self._aspect(), split),
-                                  "cam_bottom": bool(self.cfg.get("fc_bottom", False))}
+            sizes = self.cfg.get("fc_sizes") or None
+            lay = facecam.suggest_layout(box, self._aspect(), sizes,
+                                         cam_bottom=bool(self.cfg.get("fc_bottom", False)))
+            lay["sizes_manual"] = bool(sizes)
+            self.cam["layout"] = lay
             self.cam["px"] = px
         self._update_facecam_ui()
         if res.get("ok") and not res.get("fullscreen") and res.get("coverage", 0) < 0.8:
@@ -956,6 +958,7 @@ class DownloadPage(ctk.CTkFrame):
         r = c.get("result") or {}
         lay = c.get("layout") or {}
         self.fc_edit.configure(state="normal")
+        self.fc_edit.configure(text="Größen & Facecam …" if self._facecam_mode() == "facecam" else "Anpassen …")
         changed = rng is not None and c.get("range") and (abs(rng[0] - c["range"][0]) > 3 or
                                                            abs(rng[1] - c["range"][1]) > 3)
         if lay.get("manual"):
@@ -1009,8 +1012,11 @@ class DownloadPage(ctk.CTkFrame):
                 px = dict(px)
                 px.setdefault("snapped", None)
                 self.cam["px"] = px
-            self.cfg["fc_split"] = layout.get("split", 0.4)
             self.cfg["fc_bottom"] = bool(layout.get("cam_bottom"))
+            if layout.get("sizes_manual"):   # eigene Groessen fuer die naechsten Clips merken
+                self.cfg["fc_sizes"] = {k: layout.get(k) for k in ("split", "gzoom", "czoom")}
+            else:
+                self.cfg.pop("fc_sizes", None)
             self.app.save()
             self._update_facecam_ui()
             self._refresh_bar(force=True)

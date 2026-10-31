@@ -1,4 +1,5 @@
 """Facecam-Editor: Rahmen auf dem echten Videobild verschieben/anpassen, Live-Vorschau des 9:16-Shorts."""
+import math
 import tkinter as tk
 
 import customtkinter as ctk
@@ -45,7 +46,12 @@ class FacecamEditor(ctk.CTkToplevel):
         else:
             self.px = facecam.norm_to_px(self.layout["cam"], self.ref_w, self.ref_h)
         self.layout["cam"] = facecam.px_to_norm(self.px)
+        # Groessen (Facecam-Hoehe, Zooms) laufen automatisch mit, bis man sie selbst aendert
+        self.sizes_manual = bool(self.layout.get("sizes_manual"))
+        if not self.sizes_manual and not (layout or {}).get("gzoom"):
+            self._auto_sizes()
         self.idx = self._first_good_frame()
+        self.pdrag = None
         self.drag = None
         self._photo = None
         self._prev_job = None
@@ -155,29 +161,48 @@ class FacecamEditor(ctk.CTkToplevel):
         right.pack(side="left", fill="both", expand=True, padx=(14, 0))
         label(right, "SO SIEHT DEIN SHORT AUS" if self.mode == "facecam" else "DEINE FACECAM (1:1)", 11,
               T.TEXT_3, "bold").pack(anchor="w", padx=16, pady=(14, 8))
-        self.prev = ctk.CTkLabel(right, text="", width=int(PREV_H * 9 / 16), height=PREV_H, fg_color=T.SURFACE_2,
-                                 corner_radius=10)
-        self.prev.pack(padx=16)
+        self.pw, self.ph = S(int(PREV_H * 9 / 16)), S(PREV_H)
+        self.pcanvas = tk.Canvas(right, width=self.pw, height=self.ph, bg=T.SURFACE_2, highlightthickness=0, bd=0)
+        self.pcanvas.pack(padx=16)
+        if self.mode == "facecam":
+            pc = self.pcanvas
+            pc.bind("<ButtonPress-1>", self._p_press)
+            pc.bind("<B1-Motion>", self._p_move)
+            pc.bind("<ButtonRelease-1>", self._p_release)
+            pc.bind("<Motion>", self._p_hover)
+            pc.bind("<Leave>", lambda e: self._p_hover(None))
+            pc.bind("<MouseWheel>", lambda e: self._p_wheel(e, 1 if e.delta > 0 else -1))
+            pc.bind("<Button-4>", lambda e: self._p_wheel(e, 1))
+            pc.bind("<Button-5>", lambda e: self._p_wheel(e, -1))
+            label(right, "Ziehen verschiebt · Mausrad zoomt · Trennlinie ziehen ändert die Höhe", 11, T.TEXT_3,
+                  anchor="w", justify="left", wraplength=S(250)).pack(fill="x", padx=16, pady=(6, 0))
+        self._hover_part = None
 
-        self.size_lbl = label(right, "", 14, T.TEXT, "bold")
-        self.size_lbl.pack(anchor="w", padx=16, pady=(10, 0))
+        self.size_lbl = label(right, "", 13, T.TEXT, "bold", anchor="w", justify="left")
+        self.size_lbl.pack(anchor="w", padx=16, pady=(8, 0))
         ctl = ctk.CTkFrame(right, fg_color="transparent")
         if self.mode == "facecam":
-            ctl.pack(fill="x", padx=16, pady=(14, 0))
-        label(ctl, "FACECAM-HÖHE", 11, T.TEXT_3, "bold").pack(anchor="w")
-        self.split = ctk.CTkSlider(ctl, from_=0.25, to=0.6, number_of_steps=35, command=self._split_changed,
-                                   progress_color=T.ACCENT, button_color="#ffffff", button_hover_color="#ffffff",
-                                   fg_color=T.SURFACE_3, width=240)
-        self.split.set(self.layout.get("split", 0.4))
-        self.split.pack(anchor="w", pady=(4, 10))
-        label(ctl, "GAMEPLAY-AUSSCHNITT", 11, T.TEXT_3, "bold").pack(anchor="w")
-        self.gx = ctk.CTkSlider(ctl, from_=0, to=1, number_of_steps=100, command=self._gx_changed,
-                                progress_color=T.ACCENT, button_color="#ffffff", button_hover_color="#ffffff",
-                                fg_color=T.SURFACE_3, width=240)
-        self.gx.set(self.layout.get("gx", 0.5))
-        self.gx.pack(anchor="w", pady=(4, 10))
+            ctl.pack(fill="x", padx=16, pady=(10, 0))
+        self.sliders = {}
+        for key, name in (("split", "FACECAM-HÖHE"), ("czoom", "FACECAM-ZOOM"), ("gzoom", "GAMEPLAY-ZOOM")):
+            hd = ctk.CTkFrame(ctl, fg_color="transparent")
+            hd.pack(fill="x")
+            label(hd, name, 11, T.TEXT_3, "bold").pack(side="left")
+            val = label(hd, "", 11, T.TEXT, "bold")
+            val.pack(side="right")
+            sl = ctk.CTkSlider(ctl, from_=0, to=1, number_of_steps=200,
+                               command=lambda v, k=key: self._slider(k, v),
+                               progress_color=T.ACCENT, button_color="#ffffff", button_hover_color="#ffffff",
+                               fg_color=T.SURFACE_3, width=250)
+            sl.pack(fill="x", pady=(3, 9))
+            self.sliders[key] = (sl, val)
+        sw = ctk.CTkFrame(ctl, fg_color="transparent")
+        sw.pack(fill="x", pady=(0, 4))
         self.bottom_var = tk.BooleanVar(value=bool(self.layout.get("cam_bottom")))
-        switch(ctl, "Facecam unten", self.bottom_var, self._bottom_changed).pack(anchor="w", pady=(0, 6))
+        switch(sw, "Facecam unten", self.bottom_var, self._bottom_changed).pack(side="left")
+        self.auto_btn = button(sw, "Automatisch", self._auto_clicked, "ghost", size="sm", icon_name="sparkles")
+        self.auto_btn.pack(side="right")
+        self._sync_sliders()
 
         btns = ctk.CTkFrame(body, fg_color="transparent")
         btns.pack(fill="x", pady=(14, 0))
@@ -251,7 +276,11 @@ class FacecamEditor(ctk.CTkToplevel):
         for k, v in self.px_vars.items():
             if str(self.focus_get()) != str(getattr(v, "_entry", "")):
                 v.set(str(self.px[k]))
-        self.size_lbl.configure(text=f"{self.px['w']} × {self.px['h']} px")
+        if self.mode == "facecam":
+            g = self._geom()
+            self.size_lbl.configure(text=f"Facecam 1080 × {g['hf']}  ·  Gameplay 1080 × {g['hg']}")
+        else:
+            self.size_lbl.configure(text=f"{self.px['w']} × {self.px['h']} px")
         self._schedule_preview()
 
     def _set_px(self, x, y, w, h):
@@ -262,6 +291,9 @@ class FacecamEditor(ctk.CTkToplevel):
         y = max(0, min(int(y), self.ref_h - h))
         self.px.update(x=x, y=y, w=w, h=h)
         self.layout["cam"] = facecam.px_to_norm(self.px)
+        if not self.sizes_manual and self.mode == "facecam":
+            self._auto_sizes()
+            self._sync_sliders()
         self._redraw()
 
     def _px_typed(self):
@@ -288,42 +320,197 @@ class FacecamEditor(ctk.CTkToplevel):
 
     def _layout_for_preview(self):
         lay = dict(self.layout)
-        lay["split"] = float(self.split.get()) if hasattr(self, "split") else lay.get("split", 0.4)
-        lay["gx"] = float(self.gx.get()) if hasattr(self, "gx") else lay.get("gx", 0.5)
         lay["cam_bottom"] = bool(self.bottom_var.get()) if hasattr(self, "bottom_var") else lay.get("cam_bottom")
         return lay
 
     def _schedule_preview(self):
         if self._prev_job is None:
-            self._prev_job = self.after(30, self._render_preview)
+            self._prev_job = self.after(16, self._render_preview)
+
+    def _small_full(self):
+        """Verkleinerte Kopie des Bildes fuer eine fluessige Vorschau beim Ziehen."""
+        if getattr(self, "_small_src", None) is not self.full:
+            im = self.full
+            if im.size[0] > 1600:
+                im = im.resize((1600, int(1600 * im.size[1] / im.size[0])), Image.BILINEAR)
+            self._small_src, self._small = self.full, im
+        return self._small
 
     def _render_preview(self):
         self._prev_job = None
+        c = self.pcanvas
         try:
             if self.mode == "facecam_raw":
                 k = self.full.size[0] / self.ref_w
                 p = self.px
                 crop = self.full.crop((int(p["x"] * k), int(p["y"] * k), int((p["x"] + p["w"]) * k),
                                        int((p["y"] + p["h"]) * k)))
-                box_w, box_h = int(PREV_H * 9 / 16), PREV_H
-                crop.thumbnail((box_w * 2, box_h * 2), Image.LANCZOS)
-                mask = Image.new("L", crop.size, 0)
-                ImageDraw.Draw(mask).rounded_rectangle([0, 0, crop.size[0] - 1, crop.size[1] - 1], radius=14,
-                                                       fill=255)
-                out = Image.new("RGBA", crop.size, (0, 0, 0, 0))
-                out.paste(crop, (0, 0), mask)
-                self._prev_img = ctk.CTkImage(out, size=(crop.size[0] // 2, crop.size[1] // 2))
-                self.prev.configure(image=self._prev_img, fg_color=T.SURFACE)
+                crop.thumbnail((self.pw, self.ph), Image.LANCZOS)
+                self._prev_photo = ImageTk.PhotoImage(crop)
+                c.delete("all")
+                c.create_image(self.pw // 2, self.ph // 2, image=self._prev_photo, anchor="center")
                 return
-            pv = facecam.render_preview(self.full, self._layout_for_preview(), PREV_H * 2)
-            mask = Image.new("L", pv.size, 0)
-            ImageDraw.Draw(mask).rounded_rectangle([0, 0, pv.size[0] - 1, pv.size[1] - 1], radius=20, fill=255)
-            out = Image.new("RGBA", pv.size, (0, 0, 0, 0))
-            out.paste(pv, (0, 0), mask)
-            self._prev_img = ctk.CTkImage(out, size=(int(PREV_H * 9 / 16), PREV_H))
-            self.prev.configure(image=self._prev_img, fg_color=T.SURFACE)
+            lay = self._layout_for_preview()
+            pv = facecam.render_preview(self._small_full(), lay, self.ph)
+            if pv.size != (self.pw, self.ph):
+                pv = pv.resize((self.pw, self.ph), Image.BILINEAR)
+            self._prev_photo = ImageTk.PhotoImage(pv)
+            c.delete("all")
+            c.create_image(0, 0, image=self._prev_photo, anchor="nw")
+            self._draw_preview_overlay(lay)
         except Exception:
             pass
+
+    def _geom(self):
+        return facecam.layout_geometry(self._layout_for_preview(), self.aspect)
+
+    def _parts(self):
+        """Lage der beiden Flaechen in der Vorschau: {"cam": (y0, y1), "game": (y0, y1)} und Trennlinie."""
+        g = self._geom()
+        k = self.ph / facecam.OUT_H
+        if g["cam_bottom"]:
+            d = g["hg"] * k
+            return {"game": (0, d), "cam": (d, self.ph)}, d, g
+        d = g["hf"] * k
+        return {"cam": (0, d), "game": (d, self.ph)}, d, g
+
+    def _draw_preview_overlay(self, lay):
+        c = self.pcanvas
+        parts, d, g = self._parts()
+        fnt = (T.family(), -int(10 * self.scale), "bold")
+        hl = self._hover_part
+        for name, (y0, y1) in parts.items():
+            if hl == name:
+                c.create_rectangle(1, y0 + 1, self.pw - 2, y1 - 2, outline=T.ACCENT, width=2)
+            txt = "Facecam" if name == "cam" else "Gameplay"
+            z = g["cam_plan" if name == "cam" else "game_plan"]["zoom"]
+            tag = f"{txt}  {int(round(z * 100))} %"
+            tx, ty = 8, y0 + 8
+            tid = c.create_text(tx + 6, ty + 3, text=tag, anchor="nw", fill="#ffffff", font=fnt)
+            bb = c.bbox(tid)
+            if bb:
+                r = c.create_rectangle(bb[0] - 6, bb[1] - 3, bb[2] + 6, bb[3] + 3, fill="#000000", outline="",
+                                       stipple="gray50")
+                c.tag_raise(tid, r)
+        col = T.ACCENT if hl == "split" else "#ffffff"
+        c.create_line(0, d, self.pw, d, fill=col, width=2 if hl == "split" else 1)
+        gw, gh = int(30 * self.scale), int(8 * self.scale)
+        cx = self.pw // 2
+        c.create_rectangle(cx - gw // 2, d - gh // 2, cx + gw // 2, d + gh // 2, fill=col, outline="#000000")
+
+    # ------------------------------------------------------------ Vorschau bedienen
+    def _p_hit(self, x, y):
+        parts, d, g = self._parts()
+        if abs(y - d) <= 8 * self.scale:
+            return "split"
+        for name, (y0, y1) in parts.items():
+            if y0 <= y < y1:
+                return name
+        return None
+
+    def _p_hover(self, e):
+        h = None if e is None else self._p_hit(e.x, e.y)
+        cur = {"split": "sb_v_double_arrow", "cam": "fleur", "game": "fleur"}.get(h, "arrow")
+        try:
+            self.pcanvas.configure(cursor=cur)
+        except tk.TclError:
+            pass
+        if h != self._hover_part:
+            self._hover_part = h
+            self._schedule_preview()
+
+    def _p_press(self, e):
+        h = self._p_hit(e.x, e.y)
+        if h:
+            self.pdrag = (h, e.x, e.y, dict(self.layout))
+
+    def _p_move(self, e):
+        if not self.pdrag:
+            return
+        h, sx, sy, start = self.pdrag
+        k = self.ph / facecam.OUT_H
+        if h == "split":
+            y = min(max(e.y, 0), self.ph) / self.ph
+            split = (1 - y) if self.bottom_var.get() else y
+            self.layout["split"] = round(min(facecam.SPLIT_MAX, max(facecam.SPLIT_MIN, split)), 3)
+        else:
+            g = facecam.layout_geometry(dict(start, cam_bottom=self.bottom_var.get()), self.aspect)
+            plan = g["cam_plan" if h == "cam" else "game_plan"]
+            src = g["cam_src"] if h == "cam" else (0.0, 0.0, 1.0, 1.0)
+            kx, ky = ("cx", "cy") if h == "cam" else ("gx", "gy")
+            # Inhalt folgt der Maus: Mausweg (Vorschau-px) -> Ausgabe-px -> Bildhoehen -> normiert
+            dx_n = (e.x - sx) / k / plan["scale"] / self.aspect
+            dy_n = (e.y - sy) / k / plan["scale"]
+            cx_, cy_, cw_, ch_ = plan["crop"]
+            free_x, free_y = src[2] - cw_, src[3] - ch_
+            if free_x > 1e-6:
+                self.layout[kx] = round(min(1.0, max(0.0, (cx_ - dx_n - src[0]) / free_x)), 4)
+            if free_y > 1e-6:
+                self.layout[ky] = round(min(1.0, max(0.0, (cy_ - dy_n - src[1]) / free_y)), 4)
+        self._touched()
+
+    def _p_release(self, e):
+        self.pdrag = None
+
+    def _p_wheel(self, e, direction):
+        h = self._p_hit(e.x, e.y)
+        if h not in ("cam", "game"):
+            return
+        key = "czoom" if h == "cam" else "gzoom"
+        plan = self._geom()["cam_plan" if h == "cam" else "game_plan"]
+        z = plan["zoom"] * (1.08 if direction > 0 else 1 / 1.08)
+        self.layout[key] = round(min(plan["zmax"], max(plan["zmin"], z)), 4)
+        self._touched()
+
+    # ------------------------------------------------------------ Groessen
+    def _auto_sizes(self):
+        lay = facecam.suggest_layout(self.layout["cam"], self.aspect, cam_bottom=self.layout.get("cam_bottom"))
+        for k in ("split", "gzoom", "czoom", "gx", "gy", "cx", "cy"):
+            self.layout[k] = lay[k]
+
+    def _auto_clicked(self):
+        self.sizes_manual = False
+        self._auto_sizes()
+        self._sync_sliders()
+        self._redraw()
+
+    def _touched(self):
+        self.sizes_manual = True
+        self._sync_sliders()
+        self._redraw()
+
+    def _zoom_to_t(self, z, zmin, zmax):
+        return 0.0 if zmax <= zmin else math.log(max(z, zmin) / zmin) / math.log(zmax / zmin)
+
+    def _sync_sliders(self):
+        if not getattr(self, "sliders", None):
+            return
+        g = self._geom()
+        sl, val = self.sliders["split"]
+        split = g["hf"] / facecam.OUT_H
+        sl.set((split - facecam.SPLIT_MIN) / (facecam.SPLIT_MAX - facecam.SPLIT_MIN))
+        val.configure(text=f"{int(round(split * 100))} %")
+        for key, pk in (("czoom", "cam_plan"), ("gzoom", "game_plan")):
+            p = g[pk]
+            sl, val = self.sliders[key]
+            sl.set(self._zoom_to_t(p["zoom"], p["zmin"], p["zmax"]))
+            if p["zoom"] <= p["zmin"] + 1e-3:
+                txt = "ganzes Bild"
+            elif p["bg"]:
+                txt = f"{int(round(p['zoom'] * 100))} % · mit Rand"
+            else:
+                txt = f"{int(round(p['zoom'] * 100))} %"
+            val.configure(text=txt)
+        self.auto_btn.configure(state="normal" if self.sizes_manual else "disabled")
+
+    def _slider(self, key, t):
+        g = self._geom()
+        if key == "split":
+            self.layout["split"] = round(facecam.SPLIT_MIN + float(t) * (facecam.SPLIT_MAX - facecam.SPLIT_MIN), 3)
+        else:
+            p = g["cam_plan" if key == "czoom" else "game_plan"]
+            self.layout[key] = round(p["zmin"] * (p["zmax"] / p["zmin"]) ** float(t), 4)
+        self._touched()
 
     # ------------------------------------------------------------ Maus
     def _hit(self, x, y):
@@ -393,14 +580,9 @@ class FacecamEditor(ctk.CTkToplevel):
             self._redraw()
 
     # ------------------------------------------------------------ Regler
-    def _split_changed(self, v):
-        self._redraw()
-
-    def _gx_changed(self, v):
-        self._redraw()
-
     def _bottom_changed(self):
-        self._redraw()
+        self.layout["cam_bottom"] = bool(self.bottom_var.get())
+        self._touched()
 
     def _redetect(self):
         self.destroy()
@@ -412,5 +594,6 @@ class FacecamEditor(ctk.CTkToplevel):
         lay = self._layout_for_preview()
         lay["cam"] = facecam.px_to_norm(self.px)
         lay["manual"] = True
+        lay["sizes_manual"] = self.sizes_manual
         self.on_apply(lay, dict(self.px))
         self.destroy()
