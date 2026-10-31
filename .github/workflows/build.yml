@@ -53,17 +53,41 @@ jobs:
           --paths src
           src/main.py
 
-      - name: Starttest (stuerzt die exe direkt ab?)
+      - name: Starttest (erscheint das Fenster wirklich?)
         shell: pwsh
         run: |
           $p = Start-Process -FilePath "dist/Snipload.exe" -PassThru
-          Start-Sleep -Seconds 20
-          if ($p.HasExited) {
-            Write-Error "Snipload.exe hat sich nach dem Start sofort beendet (Exit-Code $($p.ExitCode))."
+          $ok = $false
+          $deadline = (Get-Date).AddSeconds(60)
+          while ((Get-Date) -lt $deadline) {
+            $win = Get-Process -Name Snipload -ErrorAction SilentlyContinue |
+                   Where-Object { $_.MainWindowTitle -like "Snipload*" }
+            if ($win) { $ok = $true; break }
+            Start-Sleep -Seconds 2
+          }
+          Get-Process -Name Snipload -ErrorAction SilentlyContinue | Format-Table Id, MainWindowTitle -AutoSize
+          if ($ok) {
+            Start-Sleep -Seconds 4
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("starttest.png")
+            Write-Host "Snipload-Fenster ist erschienen - Starttest bestanden."
+          }
+          Get-Process -Name Snipload -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) {
+            Write-Error "Snipload hat kein Fenster geoeffnet (Absturz oder Fehlermeldung beim Start)."
             exit 1
           }
-          Write-Host "Snipload laeuft nach 20 Sekunden noch - Starttest bestanden."
-          Get-Process -Name Snipload -ErrorAction SilentlyContinue | Stop-Process -Force
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: starttest-screenshot
+          path: starttest.png
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         with:

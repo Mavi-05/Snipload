@@ -509,11 +509,14 @@ class DownloadPage(ctk.CTkFrame):
             key = ("sb", idx)
             if key in self.preview_cache:
                 return self.preview_cache[key]
+            # VOR dem Ausschneiden pruefen, ob das richtige Blatt schon da ist - sonst koennte ein
+            # Ersatzbild (Nachbarblatt) im Zwischenspeicher landen, falls das Blatt genau jetzt fertig wird
+            exact = self.storyboard.sheets.get(idx // self.storyboard.per_sheet) is not None
             fr = self.storyboard.frame(t)
             if fr is not None:
                 img = rounded_image(fr, PREV_W * 2, PREV_H * 2, 20)
                 ci = ctk.CTkImage(img, size=(PREV_W, PREV_H))
-                if self.storyboard.sheets.get(idx // self.storyboard.per_sheet) is not None:
+                if exact:
                     self.preview_cache[key] = ci
                 return ci
         if self.thumb_pil is not None:
