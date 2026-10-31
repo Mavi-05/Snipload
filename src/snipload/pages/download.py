@@ -813,6 +813,28 @@ class DownloadPage(ctk.CTkFrame):
             self._save_opts()
         self._refresh_bar(force=True)
 
+    # ================================================================ Sitzung (fuer Neustart nach Update)
+    def session_state(self):
+        st = {"url": self.get_url()}
+        try:
+            st["start"], st["end"] = self.current_range()
+        except ValueError:
+            pass
+        st["name"] = self.name_var.get() if self.name_dirty else None
+        return st
+
+    def restore_session(self, st):
+        if st.get("url"):
+            self.app.clip_seen = st["url"]
+            self.set_url(st["url"], load_now=True)
+        if st.get("start") is not None:
+            self.start_f.set(st["start"])
+        if st.get("end") is not None:
+            self.end_f.set(st["end"])
+        if st.get("name"):
+            self.name_var.set(st["name"])
+            self.name_dirty = True
+
     # ================================================================ Facecam
     def _facecam_mode(self):
         if self.kind_seg.get() == "Nur Ton":

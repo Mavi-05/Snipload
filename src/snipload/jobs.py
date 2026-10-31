@@ -8,7 +8,7 @@ import threading
 import time
 
 from . import tools
-from .util import NO_WINDOW, IS_WIN, fmt_ytdlp
+from .util import NO_WINDOW, IS_WIN, clean_env, fmt_ytdlp
 
 PCT_RE = re.compile(r"\[PCT\]\s*([\d.]+)%")
 TIME_RE = re.compile(r"time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
@@ -321,7 +321,7 @@ class Runner:
         cmd = self.build_cmd(base, ffmpeg, out_name)
         self.passes, self.pass_idx, self.last_t, self.last_pct = 1, 0, -1.0, -1.0
         self.result = None
-        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        env = clean_env({"PYTHONIOENCODING": "utf-8"})
         self.set(0.0, "Verbinde mit YouTube…", "")
         try:
             j._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -427,7 +427,7 @@ class Runner:
         t0 = time.time()
         try:
             j._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                       stdin=subprocess.DEVNULL, creationflags=NO_WINDOW)
+                                       stdin=subprocess.DEVNULL, creationflags=NO_WINDOW, env=clean_env())
         except OSError as ex:
             self.tail.append(f"ERROR: {ex}")
             return False

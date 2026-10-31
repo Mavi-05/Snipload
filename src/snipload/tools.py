@@ -10,7 +10,7 @@ import threading
 import urllib.request
 from datetime import datetime
 
-from .util import IS_WIN, NO_WINDOW
+from .util import IS_WIN, NO_WINDOW, clean_env
 
 FROZEN = getattr(sys, "frozen", False)
 WINGET_IDS = {"yt-dlp": "yt-dlp.yt-dlp", "ffmpeg": "Gyan.FFmpeg"}
@@ -55,7 +55,7 @@ def ytdlp_cmd():
 
 def run(cmd, timeout=60):
     return subprocess.run(cmd, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL,
-                          creationflags=NO_WINDOW)
+                          creationflags=NO_WINDOW, env=clean_env())
 
 
 def ytdlp_version():
@@ -278,7 +278,7 @@ def grab_frame(fmt, t, width=960, timeout=25):
         cmd += ["-f", "image2pipe", "-vcodec", "png", "-compression_level", "1", "pipe:1"]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL,
-                           creationflags=NO_WINDOW)
+                           creationflags=NO_WINDOW, env=clean_env())
     except Exception:
         return None
     if r.returncode != 0 or not r.stdout:

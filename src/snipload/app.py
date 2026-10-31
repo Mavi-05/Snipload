@@ -68,6 +68,7 @@ class App(ctk.CTk):
         self.after(500, self._check_clipboard)
         self.upd = {"state": None, "info": None, "progress": 0.0, "error": None}
         updater.cleanup_leftovers()
+        self.after(600, self._after_update_start)
         self.after(4000, lambda: self.check_update(silent=True))
         self._tick()
 
@@ -427,10 +428,65 @@ class App(ctk.CTk):
             self.toast(error, "error", 7000)
         else:
             self.upd.update(state="ready", path=path)
-            v = self.upd["info"]["version"]
-            self.toast(f"Version {v} ist bereit. Neu starten, um sie zu nutzen – oder einfach beim nächsten "
-                       f"Schließen.", "success", 10000, action=self.restart_for_update, action_text="Neu starten",
-                       key="update")
+            if self.cfg.get("auto_update", True):
+                self._auto_restart(first=True)
+            else:
+                v = self.upd["info"]["version"]
+                self.toast(f"Version {v} ist bereit.", "success", 10000, action=self.restart_for_update,
+                           action_text="Neu starten", key="update")
+        self._render_update()
+
+    # ---- automatischer Neustart: 5 s Countdown, wartet auf laufende Downloads, "Spaeter" moeglich
+    def _auto_restart(self, first=False):
+        if self.upd.get("state") != "ready" or self.upd.get("postponed"):
+            return
+        v = self.upd["info"]["version"]
+        if any(j.active for j in self.queue.jobs):
+            if not self.upd.get("waiting"):
+                self.upd["waiting"] = True
+                self.toast(f"Update {v} ist bereit – Snipload startet neu, sobald deine Downloads fertig sind.",
+                           "info", 7000, action=self._postpone_restart, action_text="Später", key="update")
+            self._render_update()
+            self.after(2000, self._auto_restart)
+            return
+        self.upd["waiting"] = False
+        if first or self.upd.get("countdown") is None:
+            self.upd["countdown"] = 5
+            self.toast(f"Snipload aktualisiert sich auf {v} und öffnet sich gleich wieder.", "success", 6000,
+                       action=self._postpone_restart, action_text="Später", key="update")
+        n = self.upd["countdown"]
+        self._render_update()
+        if n <= 0:
+            self.restart_for_update(confirm=False)
+            return
+        self.upd["countdown"] = n - 1
+        self.after(1000, self._auto_restart)
+
+    def _after_update_start(self):
+        """Nach einem Update-Neustart: Hinweis zeigen und die Sitzung wiederherstellen."""
+        v = self.cfg.pop("_updated_to", None)
+        resume = self.cfg.pop("_resume", None)
+        if v is None and resume is None:
+            return
+        self.save()
+        if resume:
+            try:
+                self.pages["download"].restore_session(resume)
+                if resume.get("page") in self.pages:
+                    self.show_page(resume["page"])
+            except Exception:
+                pass
+        if v:
+            if v == updater.current_version():
+                self.toast(f"Snipload wurde auf Version {v} aktualisiert.", "success", 6000, key="update")
+            else:
+                self.toast(f"Das Update auf {v} hat nicht geklappt – Snipload läuft weiter mit "
+                           f"{updater.current_version()}.", "warn", 8000, key="update")
+
+    def _postpone_restart(self):
+        self.upd["postponed"] = True
+        self.upd["countdown"] = None
+        self.toast("Okay – das Update wird beim nächsten Schließen eingespielt.", "info", 4000, key="update")
         self._render_update()
 
     def update_clicked(self):
@@ -450,11 +506,11 @@ class App(ctk.CTk):
         else:
             self.check_update(silent=False)
 
-    def restart_for_update(self):
+    def restart_for_update(self, confirm=True):
         if self.upd.get("state") != "ready":
             return
         active = [j for j in self.queue.jobs if j.active]
-        if active and not dialog(self, "Jetzt neu starten?",
+        if active and confirm and not dialog(self, "Jetzt neu starten?",
                                  f"Es laufen noch {len(active)} Download(s). Sie werden abgebrochen.",
                                  "Neu starten", "Abbrechen", kind="warn", danger=True):
             return
@@ -467,6 +523,12 @@ class App(ctk.CTk):
             return
         if getattr(self, "_geom", None) and self.state() == "normal":
             self.cfg["geometry"] = self._geom
+        # Sitzung merken: nach dem Neustart sind Link, Zeiten und Seite wieder da
+        try:
+            self.cfg["_resume"] = dict(self.pages["download"].session_state(), page=self.page)
+        except Exception:
+            pass
+        self.cfg["_updated_to"] = self.upd["info"]["version"]
         self.save()
         self.destroy()
 
@@ -486,8 +548,14 @@ class App(ctk.CTk):
                 bar.grid(row=4, column=0, sticky="ew", padx=20, pady=(6, 0))
                 bar.set(self.upd.get("progress", 0))
             else:
-                b.configure(text=f"Neu starten für {info.get('version')}", state="normal",
-                            image=icon("refresh", 16, "#ffffff"))
+                cd = self.upd.get("countdown")
+                if self.upd.get("waiting"):
+                    txt = "Neustart nach den Downloads"
+                elif cd is not None and not self.upd.get("postponed"):
+                    txt = f"Neustart in {max(0, cd)} s – jetzt?"
+                else:
+                    txt = f"Neu starten für {info.get('version')}"
+                b.configure(text=txt, state="normal", image=icon("refresh", 16, "#ffffff"))
                 bar.grid_forget()
         else:
             b.grid_forget()

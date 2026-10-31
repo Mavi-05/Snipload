@@ -13,6 +13,21 @@ IS_WIN = os.name == "nt"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if IS_WIN else 0
 
 
+def clean_env(extra=None):
+    """Umgebung fuer gestartete Programme ohne die internen Variablen der Snipload-exe.
+
+    PyInstaller gibt _PYI_*-Variablen (und TCL/TK-Pfade in den Temp-Ordner) an Kindprozesse weiter.
+    Ist das Kind selbst eine PyInstaller-exe (yt-dlp.exe, die neue Snipload.exe nach einem Update),
+    haelt es sich sonst fuer einen Teil von Snipload und bricht mit "Security validation failure" ab.
+    """
+    env = {k: v for k, v in os.environ.items()
+           if not (k.startswith("_PYI") or k.startswith("_MEI") or k in ("TCL_LIBRARY", "TK_LIBRARY"))}
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    if extra:
+        env.update(extra)
+    return env
+
+
 # ================================================================ Pfade
 def resource_path(*parts):
     """Mitgelieferte Dateien - im Quellcode-Ordner oder in der fertigen exe."""
@@ -282,7 +297,7 @@ def open_path(path):
 def show_in_folder(path):
     try:
         if IS_WIN and path and os.path.exists(path):
-            subprocess.Popen(f'explorer /select,"{os.path.normpath(path)}"')
+            subprocess.Popen(f'explorer /select,"{os.path.normpath(path)}"', env=clean_env())
         else:
             open_path(os.path.dirname(path) if path and os.path.isfile(path) else (path or "."))
     except Exception:

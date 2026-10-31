@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 
 from . import VERSION
-from .util import NO_WINDOW, IS_WIN
+from .util import NO_WINDOW, IS_WIN, clean_env
 
 REPO = "Mavi-05/Snipload"
 ASSET = "Snipload.exe"
@@ -180,10 +180,12 @@ echo fehlgeschlagen > "{log}"
 :end
 (goto) 2>nul & del "%~f0"
 """
-    with open(script, "w", encoding="utf-8") as f:
-        f.write(text.replace("\n", "\r\n"))
+    # newline="\r\n": Windows-Zeilenenden genau EINMAL (nicht doppelt "\r\r\n" - sonst haengt ein
+    # unsichtbares \r am Pfad und "start" findet die neue exe nicht)
+    with open(script, "w", encoding="utf-8", newline="\r\n") as f:
+        f.write(text)
     flags = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP) if IS_WIN else 0
-    subprocess.Popen(["cmd", "/c", script], creationflags=flags, close_fds=True,
+    subprocess.Popen(["cmd", "/c", script], creationflags=flags, close_fds=True, env=clean_env(),
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
