@@ -18,6 +18,7 @@ import urllib.request
 
 from . import VERSION
 from .util import NO_WINDOW, IS_WIN, clean_env
+from .i18n import _
 
 REPO = "Mavi-05/Snipload"
 ASSET = "Snipload.exe"
@@ -65,24 +66,23 @@ def check(timeout=12):
     Wirft UpdateError mit verstaendlicher Meldung, wenn die Pruefung nicht klappt.
     """
     if FROZEN and not BUILD_KNOWN:  # ohne Build-Nummer wuerde jede Version als "neuer" gelten
-        raise UpdateError("Diese Snipload-Version kennt ihre Build-Nummer nicht – bitte einmal von Hand "
-                          "von GitHub laden.")
+        raise UpdateError(_("This Snipload version doesn't know its build number – please download it once by hand from GitHub."))
     req = urllib.request.Request(API, headers=UA)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            raise UpdateError("Keine Releases gefunden. (Ist das GitHub-Repo privat?)")
+            raise UpdateError(_("No releases found. (Is the GitHub repo private?)"))
         if e.code == 403:
-            raise UpdateError("GitHub hat die Anfrage gerade begrenzt. Später nochmal versuchen.")
-        raise UpdateError(f"GitHub antwortet mit Fehler {e.code}.")
+            raise UpdateError(_("GitHub is rate-limiting requests right now. Try again later."))
+        raise UpdateError(_("GitHub answered with error {code}.").format(code=e.code))
     except Exception:
-        raise UpdateError("Keine Verbindung zu GitHub.")
+        raise UpdateError(_("No connection to GitHub."))
     tag = (data.get("tag_name") or "").lstrip("vV")
     asset = next((a for a in data.get("assets") or [] if a.get("name") == ASSET), None)
     if not tag or not asset:
-        raise UpdateError("Die neueste Version enthält keine Snipload.exe.")
+        raise UpdateError(_("The latest version doesn't contain a Snipload.exe."))
     if not is_newer(tag, current_version()):
         return None
     sha = None
@@ -90,7 +90,8 @@ def check(timeout=12):
     if dig.startswith("sha256:"):
         sha = dig.split(":", 1)[1].lower()
     notes = (data.get("body") or "").strip()
-    m = re.search(r"Änderung:\s*(.+)", notes) or re.search(r"Aenderung:\s*(.+)", notes)
+    m = (re.search(r"What's new:\s*(.+)", notes) or re.search(r"Änderung:\s*(.+)", notes)
+         or re.search(r"Aenderung:\s*(.+)", notes))
     return {
         "version": tag,
         "notes": m.group(1).strip() if m else "",
@@ -120,7 +121,7 @@ def download(info, progress=None, cancelled=lambda: False):
             total = int(r.headers.get("Content-Length") or info.get("size") or 0)
             while True:
                 if cancelled():
-                    raise UpdateError("Abgebrochen.")
+                    raise UpdateError(_("Cancelled."))
                 chunk = r.read(256 * 1024)
                 if not chunk:
                     break
@@ -134,17 +135,17 @@ def download(info, progress=None, cancelled=lambda: False):
         raise
     except Exception:
         _rm(part)
-        raise UpdateError("Download des Updates fehlgeschlagen. Prüf deine Internetverbindung.")
+        raise UpdateError(_("Downloading the update failed. Check your internet connection."))
     if info.get("size") and got != info["size"]:
         _rm(part)
-        raise UpdateError("Das Update ist unvollständig angekommen. Bitte nochmal versuchen.")
+        raise UpdateError(_("The update arrived incomplete. Please try again."))
     if info.get("sha256") and h.hexdigest() != info["sha256"]:
         _rm(part)
-        raise UpdateError("Das Update ist beschädigt angekommen (Prüfsumme falsch). Bitte nochmal versuchen.")
+        raise UpdateError(_("The update arrived damaged (wrong checksum). Please try again."))
     with open(part, "rb") as f:
         if f.read(2) != b"MZ":
             _rm(part)
-            raise UpdateError("Die heruntergeladene Datei ist keine gültige exe.")
+            raise UpdateError(_("The downloaded file isn't a valid exe."))
     os.replace(part, dst)
     return dst
 
@@ -156,7 +157,7 @@ def install(staged, restart=True):
     """
     exe = sys.executable if FROZEN else os.environ.get("SNIPLOAD_UPDATE_TARGET", "")
     if not exe:
-        raise UpdateError("Selbst-Update geht nur in der fertigen exe.")
+        raise UpdateError(_("Self-update only works in the finished exe."))
     script = os.path.join(tempfile.gettempdir(), "snipload_update.cmd")
     log = os.path.join(tempfile.gettempdir(), "snipload_update.log")
     folder = os.path.dirname(exe) or "."

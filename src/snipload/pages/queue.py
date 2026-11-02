@@ -9,15 +9,16 @@ from ..icons import icon, rounded_image
 from ..jobs import Job
 from ..util import fmt_short, fmt_size, open_path, show_in_folder
 from ..widgets import badge, button, card, label, progress_bar
+from ..i18n import _
 
 TH_W, TH_H = 120, 68
 
 STATUS = {
-    Job.WAITING: ("Wartet", T.SURFACE_3, T.TEXT_2),
-    Job.RUNNING: ("Lädt", T.ACCENT_SOFT, T.ACCENT),
-    Job.DONE: ("Fertig", T.SUCCESS_SOFT, T.SUCCESS),
-    Job.FAILED: ("Fehler", T.DANGER_SOFT, T.DANGER),
-    Job.CANCELLED: ("Abgebrochen", T.SURFACE_3, T.TEXT_3),
+    Job.WAITING: (_("Waiting"), T.SURFACE_3, T.TEXT_2),
+    Job.RUNNING: (_("Downloading"), T.ACCENT_SOFT, T.ACCENT),
+    Job.DONE: (_("Done"), T.SUCCESS_SOFT, T.SUCCESS),
+    Job.FAILED: (_("Error"), T.DANGER_SOFT, T.DANGER),
+    Job.CANCELLED: (_("Cancelled"), T.SURFACE_3, T.TEXT_3),
 }
 
 _thumb_cache = {}
@@ -53,7 +54,7 @@ class JobRow(ctk.CTkFrame):
         t = job.title
         label(self, t if len(t) <= 56 else t[:54].rstrip() + "…", 14, T.TEXT, "bold", anchor="w").grid(
             row=0, column=1, sticky="ew", pady=(12, 0))
-        rng = "Ganzes Video" if job.whole else f"{fmt_short(job.start)} – {fmt_short(job.end)}"
+        rng = _("Whole video") if job.whole else f"{fmt_short(job.start)} – {fmt_short(job.end)}"
         label(self, f"{rng}  ·  {job.format_label()}", 12, T.TEXT_3, anchor="w").grid(row=1, column=1, sticky="ew")
         pr = ctk.CTkFrame(self, fg_color="transparent")
         pr.grid(row=2, column=1, sticky="ew", pady=(6, 12))
@@ -85,7 +86,7 @@ class JobRow(ctk.CTkFrame):
         self.bar.configure(progress_color=col)
         if j.status == Job.WAITING:
             ahead = sum(1 for x in self.page.app.queue.jobs if x.active and x.id < j.id)
-            d = f"Wartet – {ahead} davor" if ahead else "Startet gleich …"
+            d = _("Waiting – {ahead} ahead").format(ahead=ahead) if ahead else _("Starting in a moment …")
         elif j.status == Job.RUNNING:
             d = j.stage + (f"  ·  {j.detail}" if j.detail else "")
         elif j.status == Job.DONE:
@@ -93,7 +94,7 @@ class JobRow(ctk.CTkFrame):
         elif j.status == Job.FAILED:
             d = j.error
         else:
-            d = "Abgebrochen"
+            d = _("Cancelled")
         self.detail.configure(text=d if len(d) <= 80 else d[:78].rstrip() + "…",
                               text_color=T.DANGER if j.status == Job.FAILED else T.TEXT_2)
         if self._btn_state != j.status:
@@ -106,7 +107,7 @@ class JobRow(ctk.CTkFrame):
                 button(self.btns, "", lambda: open_path(j.file) if j.file else None, "secondary", icon_name="play",
                        size="sm", width=32).pack(side="left", padx=(4, 0))
             if j.status in (Job.WAITING, Job.RUNNING):
-                button(self.btns, "Abbrechen", j.cancel, "secondary", icon_name="x", size="sm").pack(side="left")
+                button(self.btns, _("Cancel"), j.cancel, "secondary", icon_name="x", size="sm").pack(side="left")
             else:
                 button(self.btns, "", lambda: self.page.remove(j), "ghost", icon_name="trash", size="sm",
                        width=32).pack(side="left", padx=(4, 0))
@@ -123,10 +124,10 @@ class QueuePage(ctk.CTkFrame):
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.grid(row=0, column=0, sticky="ew", padx=T.PAD, pady=(T.PAD - 4, 10))
         head.grid_columnconfigure(0, weight=1)
-        label(head, "Warteschlange", 24, T.TEXT, "bold", kind="display").grid(row=0, column=0, sticky="w")
+        label(head, _("Queue"), 24, T.TEXT, "bold", kind="display").grid(row=0, column=0, sticky="w")
         self.sub = label(head, "", 13, T.TEXT_3)
         self.sub.grid(row=1, column=0, sticky="w")
-        self.clear_btn = button(head, "Fertige entfernen", self.clear_done, "secondary", icon_name="check")
+        self.clear_btn = button(head, _("Remove finished"), self.clear_done, "secondary", icon_name="check")
         self.clear_btn.grid(row=0, column=1, rowspan=2)
 
         self.list = ctk.CTkScrollableFrame(self, fg_color=T.BG, corner_radius=0, scrollbar_button_color=T.SURFACE_3,
@@ -137,10 +138,10 @@ class QueuePage(ctk.CTkFrame):
         self.empty = ctk.CTkFrame(self.list, fg_color="transparent")
         ctk.CTkLabel(self.empty, text="", width=72, height=72, corner_radius=36, fg_color=T.SURFACE,
                      image=icon("queue", 30, T.TEXT_3)).pack(pady=(70, 16))
-        label(self.empty, "Nichts in der Warteschlange", 17, T.TEXT, "bold", kind="display").pack()
-        label(self.empty, "Mit „Zur Warteschlange“ sammelst du mehrere Clips –\nSnipload lädt sie nacheinander.",
+        label(self.empty, _("Nothing in the queue"), 17, T.TEXT, "bold", kind="display").pack()
+        label(self.empty, _("Use “Add to queue” to collect several clips –\nSnipload downloads them one after another."),
               13, T.TEXT_3, justify="center").pack(pady=(6, 18))
-        button(self.empty, "Neuen Clip erstellen", lambda: app.show_page("download"), "primary",
+        button(self.empty, _("Create a new clip"), lambda: app.show_page("download"), "primary",
                icon_name="plus").pack()
 
     def remove(self, job):
@@ -173,7 +174,7 @@ class QueuePage(ctk.CTkFrame):
         active = sum(1 for j in jobs if j.active)
         done = sum(1 for j in jobs if j.status == Job.DONE)
         if not jobs:
-            self.sub.configure(text="Clips, die Snipload nacheinander herunterlädt.")
+            self.sub.configure(text=_("Clips that Snipload downloads one after another."))
         else:
-            self.sub.configure(text=f"{active} offen  ·  {done} fertig")
+            self.sub.configure(text=_("{active} pending  ·  {done} done").format(active=active, done=done))
         self.clear_btn.configure(state="normal" if any(not j.active for j in jobs) else "disabled")

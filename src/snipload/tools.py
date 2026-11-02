@@ -4,6 +4,7 @@ import io
 import json
 import os
 import shutil
+import threading
 import subprocess
 import sys
 import threading
@@ -11,6 +12,7 @@ import urllib.request
 from datetime import datetime
 
 from .util import IS_WIN, NO_WINDOW, clean_env
+from .i18n import _
 
 FROZEN = getattr(sys, "frozen", False)
 WINGET_IDS = {"yt-dlp": "yt-dlp.yt-dlp", "ffmpeg": "Gyan.FFmpeg"}
@@ -25,8 +27,25 @@ def _winget_dirs():
             os.path.join(local, "Microsoft", "WinGet", "Packages"))
 
 
+def own_dir():
+    """Snipload-eigene Werkzeuge (yt-dlp, ffmpeg) - ohne winget, ohne Adminrechte."""
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"),
+                                                                                         ".local", "share")
+    d = os.path.join(base, "Snipload", "tools")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def own_tool(name):
+    p = os.path.join(own_dir(), name + (".exe" if IS_WIN else ""))
+    return p if os.path.isfile(p) else None
+
+
 def find_tool(name):
-    """Erst im PATH, dann in den winget-Ordnern (eine laufende exe kennt den neuen PATH evtl. noch nicht)."""
+    """Zuerst Sniploads eigene Kopie (immer aktuell), dann PATH, dann die winget-Ordner."""
+    exe = own_tool(name)
+    if exe:
+        return exe
     exe = shutil.which(name)
     if exe:
         return exe
@@ -85,42 +104,196 @@ def ffmpeg_version():
         first = run([exe, "-version"], 20).stdout.decode("utf-8", "replace").splitlines()[0]
         return first.split(" ")[2] if first.startswith("ffmpeg version") else first
     except Exception:
-        return "gefunden"
+        return "ok"
 
 
 def winget_available():
     return IS_WIN and shutil.which("winget") is not None
 
 
-def install(names):
-    """Installiert fehlende Werkzeuge per winget. Gibt die Liste der fehlgeschlagenen zurueck."""
-    failed = []
-    for n in names:
-        try:
-            r = run(["winget", "install", "-e", "--id", WINGET_IDS[n], "--accept-source-agreements",
-                     "--accept-package-agreements", "--disable-interactivity"], 900)
-            if not find_tool(n) and r.returncode != 0:
-                failed.append(n)
+# ---------------------------------------------------------------- eigene Kopien laden (ohne winget)
+YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+YTDLP_SUMS = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS"
+FFMPEG_ZIPS = [
+    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+    "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+]
+
+
+def _fetch(url, dest, progress=None, timeout=60):
+    """Laedt eine Datei nach dest (erst .part, dann umbenennen). progress(frac) optional."""
+    import urllib.request
+    req = urllib.request.Request(url, headers=UA)
+    part = dest + ".part"
+    with urllib.request.urlopen(req, timeout=timeout) as r, open(part, "wb") as f:
+        total = int(r.headers.get("Content-Length") or 0)
+        done = 0
+        while True:
+            chunk = r.read(1 << 18)
+            if not chunk:
+                break
+            f.write(chunk)
+            done += len(chunk)
+            if progress and total:
+                progress(done / total)
+    os.replace(part, dest)
+    return dest
+
+
+def _is_exe(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read(2) == b"MZ" and os.path.getsize(path) > 100_000
+    except OSError:
+        return False
+
+
+def download_ytdlp(progress=None):
+    """Aktuelle yt-dlp.exe direkt von GitHub in den eigenen Ordner. True bei Erfolg."""
+    import hashlib
+    import urllib.request
+    dest = os.path.join(own_dir(), "yt-dlp.exe")
+    tmp = dest + ".new"
+    try:
+        _fetch(YTDLP_URL, tmp, progress, 60)
+        if not _is_exe(tmp):
+            raise OSError("keine exe")
+        want = {}
+        try:  # Pruefsumme, wenn erreichbar
+            sums = urllib.request.urlopen(urllib.request.Request(YTDLP_SUMS, headers=UA), timeout=20).read()
+            want = {ln.split()[1]: ln.split()[0] for ln in sums.decode().splitlines() if len(ln.split()) == 2}
         except Exception:
+            pass
+        if want.get("yt-dlp.exe"):
+            with open(tmp, "rb") as fh:
+                h = hashlib.sha256(fh.read()).hexdigest()
+            if want["yt-dlp.exe"].lower() != h:
+                raise OSError("Pruefsumme falsch")
+        os.replace(tmp, dest)
+        return True
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return False
+
+
+def download_ffmpeg(progress=None):
+    """ffmpeg.exe + ffprobe.exe aus einem fertigen Windows-Paket in den eigenen Ordner."""
+    import tempfile
+    import zipfile
+    for url in FFMPEG_ZIPS:
+        tmpzip = os.path.join(tempfile.gettempdir(), "snipload_ffmpeg.zip")
+        try:
+            _fetch(url, tmpzip, (lambda f: progress(f * 0.95)) if progress else None, 60)
+            got = 0
+            with zipfile.ZipFile(tmpzip) as z:
+                for member in z.namelist():
+                    base = member.replace("\\", "/").rsplit("/", 1)[-1].lower()
+                    if base in ("ffmpeg.exe", "ffprobe.exe") and "/bin/" in "/" + member.replace("\\", "/"):
+                        out = os.path.join(own_dir(), base)
+                        with z.open(member) as src, open(out + ".new", "wb") as dst:
+                            shutil.copyfileobj(src, dst, 1 << 20)
+                        if not _is_exe(out + ".new"):
+                            raise OSError("keine exe")
+                        os.replace(out + ".new", out)
+                        got += 1
+            if got >= 2:
+                if progress:
+                    progress(1.0)
+                return True
+        except Exception:
+            pass
+        finally:
+            try:
+                os.remove(tmpzip)
+            except OSError:
+                pass
+    return False
+
+
+def install(names, progress=None):
+    """Laedt fehlende Werkzeuge direkt herunter (klappt auch ohne winget und ohne Adminrechte).
+    Nur wenn das scheitert, wird winget versucht. Gibt die Liste der fehlgeschlagenen zurueck."""
+    failed = []
+    for i, n in enumerate(names):
+        def prog(f, i=i, n=n):
+            if progress:
+                progress(n, (i + f) / len(names))
+        ok = download_ytdlp(prog) if n == "yt-dlp" else download_ffmpeg(prog)
+        if not ok and winget_available():
+            try:
+                run(["winget", "install", "-e", "--id", WINGET_IDS[n], "--accept-source-agreements",
+                     "--accept-package-agreements", "--disable-interactivity"], 900)
+            except Exception:
+                pass
+        if not find_tool(n):
             failed.append(n)
     return failed
 
 
 def update_ytdlp():
-    """Aktualisiert yt-dlp. Gibt (vorher, nachher) zurueck."""
-    base = ytdlp_cmd()
+    """Holt die neueste yt-dlp.exe direkt von GitHub (eigene Kopie, wird ab dann benutzt).
+    Gibt (vorher, nachher) zurueck."""
     before = ytdlp_version()
-    if not base:
-        return before, None
-    try:
-        if winget_available() and "winget" in base[0].lower():
-            run(["winget", "upgrade", "-e", "--id", WINGET_IDS["yt-dlp"], "--accept-source-agreements",
-                 "--accept-package-agreements", "--disable-interactivity"], 600)
-        else:
-            run(base + ["-U"], 600)
-    except Exception:
-        pass
+    ok = IS_WIN and download_ytdlp()
+    if not ok:
+        base = ytdlp_cmd()
+        try:
+            if base and winget_available() and "winget" in base[0].lower():
+                run(["winget", "upgrade", "-e", "--id", WINGET_IDS["yt-dlp"], "--accept-source-agreements",
+                     "--accept-package-agreements", "--disable-interactivity"], 600)
+            elif base:
+                run(base + ["-U"], 600)
+        except Exception:
+            pass
     return before, ytdlp_version()
+
+
+# ---------------------------------------------------------------- schnelles Kodieren
+# Beim sekundengenauen Schnitt kodiert ffmpeg den Abschnitt neu. Ohne Vorgaben nimmt es libx264 "medium"
+# auf dem Prozessor - bei 1440p/4K oft nur 0,1x Echtzeit. Darum: Grafikkarte (NVIDIA/Intel/AMD), sonst
+# libx264 "veryfast" (etwa 3x so schnell, kaum sichtbarer Unterschied).
+_HW = [
+    ("h264_nvenc", ["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", "0", "-pix_fmt", "yuv420p"]),
+    ("h264_qsv", ["-c:v", "h264_qsv", "-preset", "faster", "-global_quality", "20", "-pix_fmt", "nv12"]),
+    ("h264_amf", ["-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "19", "-qp_p", "21",
+                  "-pix_fmt", "yuv420p"]),
+]
+CPU_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"]
+_enc_cache = {}
+_enc_lock = threading.Lock()
+hw_broken = False
+
+
+def video_encoder(allow_hw=True):
+    """(Name, ffmpeg-Argumente) des schnellsten funktionierenden H.264-Encoders. Wird einmal getestet."""
+    if not allow_hw or hw_broken:
+        return "libx264", list(CPU_ARGS)
+    with _enc_lock:
+        if "best" not in _enc_cache:
+            best = ("libx264", list(CPU_ARGS))
+            ff = find_tool("ffmpeg")
+            if ff and IS_WIN:
+                for name, args in _HW:
+                    try:
+                        r = run([ff, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                                 "color=c=black:s=1280x720:r=30", "-t", "0.5", *args, "-f", "null", "-"], 20)
+                        if r.returncode == 0:
+                            best = (name, list(args))
+                            break
+                    except Exception:
+                        pass
+            _enc_cache["best"] = best
+        name, args = _enc_cache["best"]
+        return name, list(args)
+
+
+def is_forbidden(text):
+    """YouTube hat den Download verweigert (HTTP 403). ffmpeg meldet das als Code 3436169992 / -858797304."""
+    low = (text or "").lower()
+    return ("403" in low and ("forbidden" in low or "http" in low)) or "3436169992" in low or "-858797304" in low
 
 
 # ================================================================ Video-Infos
@@ -132,12 +305,12 @@ def fetch_info(url):
     """Holt alle Infos (inkl. Storyboard) per yt-dlp -J."""
     base = ytdlp_cmd()
     if not base:
-        raise InfoError("yt-dlp fehlt")
+        raise InfoError(_("yt-dlp is missing"))
     cmd = base + ["-J", "--no-playlist", "--no-warnings", "--encoding", "utf-8", url]
     try:
         r = run(cmd, 120)
     except subprocess.TimeoutExpired:
-        raise InfoError("YouTube antwortet nicht. Prüf deine Internetverbindung.")
+        raise InfoError(_("YouTube isn't responding. Check your internet connection."))
     out = r.stdout.decode("utf-8", "replace").strip()
     info = None
     if out:
@@ -153,9 +326,9 @@ def fetch_info(url):
                         pass
     if not info:
         err = [l for l in r.stderr.decode("utf-8", "replace").splitlines() if "ERROR" in l]
-        raise InfoError(friendly_error(err[-1] if err else "Keine Video-Infos gefunden."))
+        raise InfoError(friendly_error(err[-1] if err else _("No video info found.")))
     if info.get("_type") == "playlist":
-        raise InfoError("Das ist eine Playlist. Bitte den Link eines einzelnen Videos einfügen.")
+        raise InfoError(_("This is a playlist. Please paste the link of a single video."))
     return info
 
 
@@ -163,19 +336,22 @@ def friendly_error(msg):
     m = msg.split("ERROR:", 1)[-1].strip()
     low = m.lower()
     if "private video" in low or "is private" in low:
-        return "Dieses Video ist privat."
+        return _("This video is private.")
     if "unavailable" in low or "not available" in low:
-        return "Dieses Video ist nicht verfügbar (gelöscht, gesperrt oder in deinem Land blockiert)."
+        return _("This video isn't available (deleted, blocked or not available in your country).")
     if "sign in to confirm your age" in low or "age" in low and "sign in" in low:
-        return "Dieses Video ist altersbeschränkt und braucht eine Anmeldung."
+        return _("This video is age-restricted and needs a sign-in.")
     if "sign in to confirm" in low or "not a bot" in low:
-        return "YouTube blockt gerade die Anfrage. Aktualisiere yt-dlp in den Einstellungen und versuch es nochmal."
+        return _("YouTube is currently blocking the request. Update yt-dlp in the settings and try again.")
+    if is_forbidden(low):
+        return _("YouTube refused the download (HTTP 403). Snipload already updated yt-dlp and tried again – "
+                 "wait a few minutes and try once more.")
     if "unsupported url" in low:
-        return "Diesen Link kann Snipload nicht öffnen."
+        return _("Snipload can't open this link.")
     if "unable to download" in low or "getaddrinfo" in low or "network" in low or "timed out" in low:
-        return "Keine Verbindung. Prüf deine Internetverbindung."
+        return _("No connection. Check your internet connection.")
     if "live event" in low or "is live" in low or "premieres in" in low:
-        return "Livestreams und Premieren können erst nach dem Ende geladen werden."
+        return _("Livestreams and premieres can only be downloaded after they've ended.")
     return m[:220]
 
 

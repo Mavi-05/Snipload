@@ -10,6 +10,7 @@ from .. import theme as T
 from ..icons import icon
 from ..util import fmt_short, resource_path, win_dark_titlebar
 from ..widgets import button, label, switch
+from ..i18n import _
 
 CAN_W, CAN_H = 704, 396     # Arbeitsflaeche (16:9)
 PREV_H = 448                # Hoehe der 9:16-Vorschau
@@ -22,7 +23,7 @@ class FacecamEditor(ctk.CTkToplevel):
     def __init__(self, app, frames, result, layout, aspect, on_apply, on_redetect=None, mode="facecam", px=None):
         super().__init__(app, fg_color=T.BG)
         self.app = app
-        self.title("Facecam einstellen – Snipload")
+        self.title(_("Set up facecam – Snipload"))
         self.bind("<KeyPress>", self._key)
         self.resizable(False, False)
         self.transient(app)
@@ -79,7 +80,7 @@ class FacecamEditor(ctk.CTkToplevel):
 
     def _first_good_frame(self):
         missing = set(self.result.get("missing") or [])
-        for i, (t, _) in enumerate(self.frames):
+        for i, (t, _x) in enumerate(self.frames):
             if t not in missing:
                 return i
         return 0
@@ -93,7 +94,7 @@ class FacecamEditor(ctk.CTkToplevel):
         head = ctk.CTkFrame(body, fg_color="transparent")
         head.pack(fill="x")
         ctk.CTkLabel(head, text="", image=icon("monitor", 20, T.ACCENT)).pack(side="left", padx=(0, 10))
-        label(head, "Facecam einstellen", 19, T.TEXT, "bold", kind="display").pack(side="left")
+        label(head, _("Set up facecam"), 19, T.TEXT, "bold", kind="display").pack(side="left")
         self.status = ctk.CTkFrame(body, fg_color=T.SURFACE, corner_radius=T.RADIUS_SM, border_width=1,
                                    border_color=T.BORDER)
         self.status.pack(fill="x", pady=(12, 12))
@@ -109,7 +110,7 @@ class FacecamEditor(ctk.CTkToplevel):
         # ---- links: Videobild mit Rahmen
         left = ctk.CTkFrame(main, fg_color=T.SURFACE, corner_radius=T.RADIUS, border_width=1, border_color=T.BORDER)
         left.pack(side="left", fill="y")
-        label(left, "Zieh den roten Rahmen auf die Facecam – an den Ecken änderst du die Größe.", 12, T.TEXT_2,
+        label(left, _("Drag the red frame onto the facecam – use the corners to change its size."), 12, T.TEXT_2,
               anchor="w").pack(fill="x", padx=16, pady=(14, 8))
         self.cw, self.ch = S(CAN_W), S(CAN_H)
         self.canvas = tk.Canvas(left, width=self.cw, height=self.ch, bg=T.SURFACE, highlightthickness=0, bd=0)
@@ -122,7 +123,7 @@ class FacecamEditor(ctk.CTkToplevel):
         pxrow = ctk.CTkFrame(left, fg_color="transparent")
         pxrow.pack(fill="x", padx=16, pady=(10, 0))
         self.px_vars = {}
-        for i, (key, name) in enumerate((("x", "X"), ("y", "Y"), ("w", "Breite"), ("h", "Höhe"))):
+        for i, (key, name) in enumerate((("x", "X"), ("y", "Y"), ("w", _("Width")), ("h", _("Height")))):
             label(pxrow, name, 11, T.TEXT_3, "bold").grid(row=0, column=i * 2, padx=(0 if i == 0 else 12, 6))
             v = tk.StringVar()
             e = ctk.CTkEntry(pxrow, textvariable=v, width=70, height=30, justify="center", fg_color=T.SURFACE_2,
@@ -131,14 +132,14 @@ class FacecamEditor(ctk.CTkToplevel):
             e.bind("<Return>", lambda ev: self._px_typed())
             e.bind("<FocusOut>", lambda ev: self._px_typed())
             self.px_vars[key] = v
-        label(pxrow, f"px  ·  Video {self.ref_w}×{self.ref_h}", 11, T.TEXT_3).grid(row=0, column=8, padx=(12, 0))
-        label(left, "Feinschliff: Pfeiltasten verschieben um 1 px, mit Umschalt ändern sie die Größe.", 11,
+        label(pxrow, _("px  ·  video {ref_w}×{ref_h}").format(ref_w=self.ref_w, ref_h=self.ref_h), 11, T.TEXT_3).grid(row=0, column=8, padx=(12, 0))
+        label(left, _("Fine-tuning: arrow keys move by 1 px, with Shift they change the size."), 11,
               T.TEXT_3, anchor="w").pack(fill="x", padx=16, pady=(6, 0))
 
         # Bildleiste: alle geprueften Bilder aus dem Zeitraum
         strip = ctk.CTkFrame(left, fg_color="transparent")
         strip.pack(fill="x", padx=16, pady=(12, 14))
-        label(strip, "GEPRÜFTE STELLEN IM ZEITRAUM", 11, T.TEXT_3, "bold").pack(anchor="w", pady=(0, 6))
+        label(strip, _("CHECKED FRAMES IN THE RANGE"), 11, T.TEXT_3, "bold").pack(anchor="w", pady=(0, 6))
         row = ctk.CTkFrame(strip, fg_color="transparent")
         row.pack(fill="x")
         self.thumb_btns = []
@@ -159,7 +160,7 @@ class FacecamEditor(ctk.CTkToplevel):
         # ---- rechts: Vorschau + Regler
         right = ctk.CTkFrame(main, fg_color=T.SURFACE, corner_radius=T.RADIUS, border_width=1, border_color=T.BORDER)
         right.pack(side="left", fill="both", expand=True, padx=(14, 0))
-        label(right, "SO SIEHT DEIN SHORT AUS" if self.mode == "facecam" else "DEINE FACECAM (1:1)", 11,
+        label(right, _("THIS IS YOUR SHORT") if self.mode == "facecam" else _("YOUR FACECAM (1:1)"), 11,
               T.TEXT_3, "bold").pack(anchor="w", padx=16, pady=(14, 8))
         self.pw, self.ph = S(int(PREV_H * 9 / 16)), S(PREV_H)
         self.pcanvas = tk.Canvas(right, width=self.pw, height=self.ph, bg=T.SURFACE_2, highlightthickness=0, bd=0)
@@ -174,7 +175,7 @@ class FacecamEditor(ctk.CTkToplevel):
             pc.bind("<MouseWheel>", lambda e: self._p_wheel(e, 1 if e.delta > 0 else -1))
             pc.bind("<Button-4>", lambda e: self._p_wheel(e, 1))
             pc.bind("<Button-5>", lambda e: self._p_wheel(e, -1))
-            label(right, "Ziehen verschiebt · Mausrad zoomt · Trennlinie ziehen ändert die Höhe", 11, T.TEXT_3,
+            label(right, _("Drag to move · scroll to zoom · drag the divider to change the height"), 11, T.TEXT_3,
                   anchor="w", justify="left", wraplength=S(250)).pack(fill="x", padx=16, pady=(6, 0))
         self._hover_part = None
 
@@ -184,7 +185,7 @@ class FacecamEditor(ctk.CTkToplevel):
         if self.mode == "facecam":
             ctl.pack(fill="x", padx=16, pady=(10, 0))
         self.sliders = {}
-        for key, name in (("split", "FACECAM-HÖHE"), ("czoom", "FACECAM-ZOOM"), ("gzoom", "GAMEPLAY-ZOOM")):
+        for key, name in (("split", _("FACECAM HEIGHT")), ("czoom", _("FACECAM ZOOM")), ("gzoom", _("GAMEPLAY ZOOM"))):
             hd = ctk.CTkFrame(ctl, fg_color="transparent")
             hd.pack(fill="x")
             label(hd, name, 11, T.TEXT_3, "bold").pack(side="left")
@@ -199,31 +200,31 @@ class FacecamEditor(ctk.CTkToplevel):
         sw = ctk.CTkFrame(ctl, fg_color="transparent")
         sw.pack(fill="x", pady=(0, 4))
         self.bottom_var = tk.BooleanVar(value=bool(self.layout.get("cam_bottom")))
-        switch(sw, "Facecam unten", self.bottom_var, self._bottom_changed).pack(side="left")
-        self.auto_btn = button(sw, "Automatisch", self._auto_clicked, "ghost", size="sm", icon_name="sparkles")
+        switch(sw, _("Facecam at the bottom"), self.bottom_var, self._bottom_changed).pack(side="left")
+        self.auto_btn = button(sw, _("Automatic"), self._auto_clicked, "ghost", size="sm", icon_name="sparkles")
         self.auto_btn.pack(side="right")
         self._sync_sliders()
 
         btns = ctk.CTkFrame(body, fg_color="transparent")
         btns.pack(fill="x", pady=(14, 0))
         if self.on_redetect:
-            button(btns, "Neu erkennen", self._redetect, "ghost", icon_name="refresh").pack(side="left")
-        button(btns, "Übernehmen", self._apply, "primary", icon_name="check", width=150).pack(side="right")
-        button(btns, "Abbrechen", self.destroy, "secondary", width=120).pack(side="right", padx=(0, 8))
+            button(btns, _("Detect again"), self._redetect, "ghost", icon_name="refresh").pack(side="left")
+        button(btns, _("Apply"), self._apply, "primary", icon_name="check", width=150).pack(side="right")
+        button(btns, _("Cancel"), self.destroy, "secondary", width=120).pack(side="right", padx=(0, 8))
 
     def _show_status(self):
         r = self.result
         if not r:
-            ic, col, txt = "info", T.TEXT_2, "Leg die Facecam von Hand fest."
+            ic, col, txt = "info", T.TEXT_2, _("Set the facecam by hand.")
         elif not r.get("ok"):
             ic, col = "alert", T.WARN
-            txt = (r.get("message") or "Keine Facecam erkannt.") + " Leg den Rahmen bitte von Hand fest."
+            txt = (r.get("message") or _("No facecam detected.")) + _(" Please set the frame by hand.")
         elif r.get("fullscreen"):
             ic, col, txt = "info", T.TEXT_2, r.get("message")
         elif r.get("coverage", 0) >= 1.0:
-            ic, col, txt = "check", T.SUCCESS, r.get("message") + " Prüf kurz die Bilder unten."
+            ic, col, txt = "check", T.SUCCESS, r.get("message") + _(" Quickly check the frames below.")
         else:
-            ic, col, txt = "alert", T.WARN, r.get("message") + " Gelb markierte Stellen ansehen."
+            ic, col, txt = "alert", T.WARN, r.get("message") + _(" Take a look at the frames marked in yellow.")
         self.st_icon.configure(image=icon(ic, 18, col))
         self.st_text.configure(text=txt)
 
@@ -264,14 +265,14 @@ class FacecamEditor(ctk.CTkToplevel):
         gx1, gy1 = (g[0] + g[2]) * self.cw, (g[1] + g[3]) * self.ch
         if self.mode == "facecam":
             c.create_rectangle(gx0 + 1, gy0 + 1, gx1 - 1, gy1 - 1, outline="#ffffff", dash=(6, 5), width=1)
-            c.create_text(gx0 + 8, gy1 - 10, text="Gameplay", anchor="sw", fill="#ffffff",
+            c.create_text(gx0 + 8, gy1 - 10, text=_("Gameplay"), anchor="sw", fill="#ffffff",
                           font=(T.family(), -int(11 * self.scale), "bold"))
         w = max(2, int(3 * self.scale))
         c.create_rectangle(x0, y0, x1, y1, outline=T.ACCENT, width=w)
         r = int(7 * self.scale)
         for hx, hy in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
             c.create_oval(hx - r, hy - r, hx + r, hy + r, fill="#ffffff", outline=T.ACCENT, width=w)
-        c.create_text(x0 + 8, y0 + 8, text="Facecam", anchor="nw", fill="#ffffff",
+        c.create_text(x0 + 8, y0 + 8, text=_("Facecam"), anchor="nw", fill="#ffffff",
                       font=(T.family(), -int(11 * self.scale), "bold"))
         for k, v in self.px_vars.items():
             if str(self.focus_get()) != str(getattr(v, "_entry", "")):
@@ -382,7 +383,7 @@ class FacecamEditor(ctk.CTkToplevel):
         for name, (y0, y1) in parts.items():
             if hl == name:
                 c.create_rectangle(1, y0 + 1, self.pw - 2, y1 - 2, outline=T.ACCENT, width=2)
-            txt = "Facecam" if name == "cam" else "Gameplay"
+            txt = _("Facecam") if name == "cam" else _("Gameplay")
             z = g["cam_plan" if name == "cam" else "game_plan"]["zoom"]
             tag = f"{txt}  {int(round(z * 100))} %"
             tx, ty = 8, y0 + 8
@@ -495,9 +496,9 @@ class FacecamEditor(ctk.CTkToplevel):
             sl, val = self.sliders[key]
             sl.set(self._zoom_to_t(p["zoom"], p["zmin"], p["zmax"]))
             if p["zoom"] <= p["zmin"] + 1e-3:
-                txt = "ganzes Bild"
+                txt = _("whole frame")
             elif p["bg"]:
-                txt = f"{int(round(p['zoom'] * 100))} % · mit Rand"
+                txt = _("{int} % · with border").format(int=int(round(p['zoom'] * 100)))
             else:
                 txt = f"{int(round(p['zoom'] * 100))} %"
             val.configure(text=txt)

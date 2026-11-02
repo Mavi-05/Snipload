@@ -47,8 +47,16 @@ def init_fonts(root):
             if n in fams:
                 return n
         return "Segoe UI" if os.name == "nt" else "DejaVu Sans"
-    _families["text"] = pick("Segoe UI Variable Text", "Segoe UI", "Inter", "DejaVu Sans")
-    _families["display"] = pick("Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", "Inter", "DejaVu Sans")
+    from .i18n import lang
+    cjk = {"ja": ("Yu Gothic UI", "Meiryo UI", "MS UI Gothic", "Noto Sans CJK JP"),
+           "ko": ("Malgun Gothic", "Noto Sans CJK KR"),
+           "zh": ("Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC")}.get(lang())
+    if cjk:   # Segoe UI hat keine japanischen/koreanischen/chinesischen Zeichen
+        _families["text"] = _families["display"] = pick(*cjk, "Segoe UI")
+    else:
+        _families["text"] = pick("Segoe UI Variable Text", "Segoe UI", "Inter", "DejaVu Sans")
+        _families["display"] = pick("Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", "Inter",
+                                    "DejaVu Sans")
     _families["mono"] = pick("Cascadia Mono", "Consolas", "DejaVu Sans Mono")
 
 

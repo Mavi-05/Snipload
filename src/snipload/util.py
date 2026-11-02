@@ -8,6 +8,7 @@ import urllib.parse
 from datetime import datetime
 
 from . import APP
+from .i18n import _, lang as i18n_lang
 
 IS_WIN = os.name == "nt"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if IS_WIN else 0
@@ -68,10 +69,11 @@ DEFAULTS = {
     "open_after": False,
     "watch_clipboard": True,
     "auto_update": True,
+    "language": None,         # None = Englisch (Standard); sonst Code aus i18n.LANGUAGES
     "fc_split": 0.40,
     "fc_bottom": False,
     "also_full": False,
-    "name_template": "{titel} [{start} bis {ende}]",
+    "name_template": "{title} [{start} - {end}]",
     "history": [],
     "geometry": None,
 }
@@ -97,6 +99,8 @@ def load_settings():
         data["quality"] = q[:-1]
     elif q not in (None, "best", "2160", "1440", "1080", "720", "480"):
         data["quality"] = "best"
+    if data.get("name_template") == "{titel} [{start} bis {ende}]":   # alter deutscher Standard
+        data["name_template"] = DEFAULTS["name_template"]
     out = dict(DEFAULTS)
     out.update({k: v for k, v in data.items() if k in DEFAULTS or k.startswith("_")})
     if not out.get("folder"):
@@ -166,12 +170,12 @@ def fmt_field(sec):
 def fmt_duration_words(sec):
     sec = int(round(sec or 0))
     if sec < 60:
-        return f"{sec} s"
+        return _("{sec} s").format(sec=sec)
     m, s = divmod(sec, 60)
     if m < 60:
-        return f"{m} min {s:02d} s" if s else f"{m} min"
+        return _("{m} min {s:02d} s").format(m=m, s=s) if s else _("{m} min").format(m=m)
     h, m = divmod(m, 60)
-    return f"{h} h {m:02d} min"
+    return _("{h} h {m:02d} min").format(h=h, m=m)
 
 
 def fmt_size(n):
@@ -183,23 +187,70 @@ def fmt_size(n):
         n /= 1024
 
 
+# Kurzschreibweise grosser Zahlen je Sprache: (Tausend, Million, Milliarde), Dezimalzeichen, Tausendertrenner
+_COUNT = {
+    "en": (("K", "M", "B"), ".", ","), "de": ((" Tsd.", " Mio.", " Mrd."), ",", "."),
+    "es": ((" mil", " M", " mil M"), ",", "."), "fr": ((" k", " M", " Md"), ",", "\u202f"),
+    "pt": ((" mil", " mi", " bi"), ",", "."), "tr": ((" B", " Mn", " Mr"), ",", "."),
+    "ru": ((" тыс.", " млн", " млрд"), ",", "\u00a0"),
+}
+
+
 def fmt_count(n):
     if not n:
         return ""
+    lang = i18n_lang()
+    if lang in ("ja", "zh", "ko"):   # Zehntausender-System: 万 / 億 (ko: 만 / 억)
+        man, oku = ("만", "억") if lang == "ko" else (("万", "億") if lang == "ja" else ("万", "亿"))
+        if n >= 100_000_000:
+            return f"{n / 1e8:.1f}".rstrip("0").rstrip(".") + oku
+        if n >= 10_000:
+            return f"{n / 1e4:.1f}".rstrip("0").rstrip(".") + man
+        return f"{n:,}"
+    (k, m, b), dec, sep = _COUNT.get(lang, _COUNT["en"])
     if n >= 1_000_000_000:
-        return f"{n / 1e9:.1f}".replace(".", ",") + " Mrd."
+        return f"{n / 1e9:.1f}".replace(".", dec) + b
     if n >= 1_000_000:
-        return f"{n / 1e6:.1f}".replace(".", ",") + " Mio."
+        return f"{n / 1e6:.1f}".replace(".", dec) + m
     if n >= 10_000:
-        return f"{n / 1e3:.0f} Tsd."
-    return f"{n:,}".replace(",", ".")
+        return f"{n / 1e3:.0f}" + k
+    return f"{n:,}".replace(",", sep)
+
+
+_MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def fmt_upload_date(s):
     try:
-        return datetime.strptime(s, "%Y%m%d").strftime("%d.%m.%Y")
+        d = datetime.strptime(s, "%Y%m%d")
     except Exception:
         return ""
+    return fmt_date(d)
+
+
+def fmt_datetime(ts):
+    """Zeitpunkt (Unix-Zeit) als Datum + Uhrzeit in der Schreibweise der eingestellten Sprache."""
+    try:
+        d = datetime.fromtimestamp(float(ts))
+    except Exception:
+        return ""
+    if i18n_lang() == "en":
+        h = d.hour % 12 or 12
+        return f"{fmt_date(d)}, {h}:{d.minute:02d} {'PM' if d.hour >= 12 else 'AM'}"
+    return f"{fmt_date(d)} {d.hour:02d}:{d.minute:02d}"
+
+
+def fmt_date(d):
+    lang = i18n_lang()
+    if lang == "en":
+        return f"{_MONTHS_EN[d.month - 1]} {d.day}, {d.year}"
+    if lang in ("ja", "zh"):
+        return f"{d.year}/{d.month}/{d.day}"
+    if lang == "ko":
+        return f"{d.year}. {d.month}. {d.day}."
+    if lang in ("de", "tr", "ru"):
+        return d.strftime("%d.%m.%Y")
+    return d.strftime("%d/%m/%Y")
 
 
 # ================================================================ Links
@@ -261,12 +312,15 @@ def build_name(template, info, start, end, whole):
     title = (info or {}).get("title") or "Clip"
     channel = (info or {}).get("channel") or (info or {}).get("uploader") or ""
     s_txt = fmt_short(start).replace(":", "-")
-    e_txt = fmt_short(end).replace(":", "-") if end is not None else "Ende"
-    values = {"titel": title, "kanal": channel, "start": s_txt, "ende": e_txt,
-              "datum": datetime.now().strftime("%Y-%m-%d"), "id": (info or {}).get("id") or ""}
+    e_txt = fmt_short(end).replace(":", "-") if end is not None else _("end")
+    date = datetime.now().strftime("%Y-%m-%d")
+    vid = (info or {}).get("id") or ""
+    # englische Platzhalter + die alten deutschen (fuer gespeicherte Vorlagen)
+    values = {"title": title, "channel": channel, "start": s_txt, "end": e_txt, "date": date, "id": vid,
+              "titel": title, "kanal": channel, "ende": e_txt, "datum": date}
     tpl = template or DEFAULTS["name_template"]
     if whole:  # ganzes Video: Zeitangaben samt Klammern weglassen
-        tpl = re.sub(r"\s*[\[(]\s*\{start\}.*?\{ende\}\s*[\])]", "", tpl)
+        tpl = re.sub(r"\s*[\[(]\s*\{start\}.*?\{(?:end|ende)\}\s*[\])]", "", tpl)
     try:
         out = tpl.format(**values)
     except (KeyError, IndexError, ValueError):
@@ -305,6 +359,73 @@ def show_in_folder(path):
 
 
 # ================================================================ Windows-Extras
+def win_no_throttle(handle=None):
+    """Windows-Energiesparmodus ("Effizienzmodus"/EcoQoS) fuer einen Prozess abschalten.
+
+    Windows 11 bremst Prozesse, deren Fenster im Hintergrund liegen - ein Download/Schnitt wuerde dann
+    stark verlangsamt, sobald man aus Snipload heraustabbt. handle=None: der eigene Prozess."""
+    if not IS_WIN:
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _State(ctypes.Structure):
+            _fields_ = [("Version", wintypes.ULONG), ("ControlMask", wintypes.ULONG), ("StateMask", wintypes.ULONG)]
+        k = ctypes.windll.kernel32
+        k.SetProcessInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        h = wintypes.HANDLE(int(handle)) if handle else k.GetCurrentProcess()
+        for mask in (0x1, 0x4):   # EXECUTION_SPEED, IGNORE_TIMER_RESOLUTION
+            st = _State(1, mask, 0)   # StateMask 0 = nie drosseln
+            k.SetProcessInformation(h, 4, ctypes.byref(st), ctypes.sizeof(st))   # 4 = ProcessPowerThrottling
+    except Exception:
+        pass
+
+
+def win_unthrottle_tree(pid):
+    """win_no_throttle fuer alle Nachkommen eines Prozesses (yt-dlp startet ffmpeg selbst - auch das
+    soll im Hintergrund nicht gebremst werden)."""
+    if not IS_WIN or not pid:
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _PE(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
+                        ("th32DefaultHeapID", ctypes.c_void_p), ("th32ModuleID", wintypes.DWORD),
+                        ("cntThreads", wintypes.DWORD), ("th32ParentProcessID", wintypes.DWORD),
+                        ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                        ("szExeFile", ctypes.c_wchar * 260)]
+        k = ctypes.windll.kernel32
+        k.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+        k.OpenProcess.restype = wintypes.HANDLE
+        snap = k.CreateToolhelp32Snapshot(0x2, 0)   # TH32CS_SNAPPROCESS
+        if not snap or snap == wintypes.HANDLE(-1).value:
+            return
+        children = {}
+        e = _PE()
+        e.dwSize = ctypes.sizeof(_PE)
+        ok = k.Process32FirstW(snap, ctypes.byref(e))
+        while ok:
+            children.setdefault(e.th32ParentProcessID, []).append(e.th32ProcessID)
+            ok = k.Process32NextW(snap, ctypes.byref(e))
+        k.CloseHandle(snap)
+        todo, seen = list(children.get(pid, [])), set()
+        while todo:
+            p = todo.pop()
+            if p in seen:
+                continue
+            seen.add(p)
+            todo += children.get(p, [])
+            h = k.OpenProcess(0x0200 | 0x1000, False, p)   # SET_INFORMATION | QUERY_LIMITED_INFORMATION
+            if h:
+                win_no_throttle(h)
+                k.CloseHandle(h)
+    except Exception:
+        pass
+
+
 def win_dark_titlebar(window, caption_hex=None):
     """Dunkle Titelleiste (Windows 10/11) und passende Leistenfarbe (Windows 11)."""
     if not IS_WIN:

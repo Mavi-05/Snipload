@@ -104,12 +104,12 @@ jobs:
           name: Snipload ${{ steps.ver.outputs.full }}
           make_latest: true
           body: |
-            **Download:** `Snipload.exe` unten bei *Assets* anklicken, herunterladen, starten.
+            **Download:** click `Snipload.exe` under *Assets* below, download it and run it – no installation needed.
+            Already using Snipload? It updates itself automatically.
 
-            Beim ersten Start zeigt Windows evtl. „Der Computer wurde durch Windows geschuetzt" –
-            dann auf „Weitere Informationen" und „Trotzdem ausfuehren" klicken.
+            On the first start Windows may show "Windows protected your PC" – click *More info* → *Run anyway*.
 
-            Aenderung: ${{ github.event.head_commit.message }}
+            What's new: ${{ github.event.head_commit.message }}
           files: |
             dist/Snipload.exe
             Snipload-Vorschau.png

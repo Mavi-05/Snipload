@@ -17,9 +17,10 @@ from ..util import (build_name, fmt_count, fmt_duration_words, fmt_short, fmt_si
                     thumbs_dir)
 from ..widgets import (Shimmer, Timeline, TimeField, badge, button, card, entry, label, option_menu, switch,
                        progress_bar, segmented)
+from ..i18n import _
 
 PREV_W, PREV_H = 288, 162
-KIND_VALUES = ["Video", "Nur Ton"]
+KIND_VALUES = [_("Video"), _("Audio only")]
 ASPECT_VALUES = list(ASPECT_LABELS.values())
 QUALITY_VALUES = list(QUALITY_LABELS.values())
 AUDIO_VALUES = list(AUDIO_LABELS.values())
@@ -68,8 +69,8 @@ class DownloadPage(ctk.CTkFrame):
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.grid(row=0, column=0, sticky="ew", padx=T.PAD, pady=(T.PAD - 4, 10))
         head.grid_columnconfigure(0, weight=1)
-        label(head, "Neuer Clip", 24, T.TEXT, "bold", kind="display").grid(row=0, column=0, sticky="w")
-        label(head, "Link einfügen, Abschnitt wählen, fertig.", 13, T.TEXT_3).grid(row=1, column=0, sticky="w")
+        label(head, _("New clip"), 24, T.TEXT, "bold", kind="display").grid(row=0, column=0, sticky="w")
+        label(head, _("Paste a link, pick a section, done."), 13, T.TEXT_3).grid(row=1, column=0, sticky="w")
 
         self.body = ctk.CTkScrollableFrame(self, fg_color=T.BG, corner_radius=0,
                                            scrollbar_button_color=T.SURFACE_3,
@@ -96,13 +97,13 @@ class DownloadPage(ctk.CTkFrame):
         field.grid_columnconfigure(1, weight=1)
         self.url_icon = ctk.CTkLabel(field, text="", image=icon("link", 17, T.TEXT_3))
         self.url_icon.grid(row=0, column=0, padx=(14, 4))
-        self.url_entry = ctk.CTkEntry(field, placeholder_text="YouTube-Link einfügen  (Strg + V)", height=40,
+        self.url_entry = ctk.CTkEntry(field, placeholder_text=_("Paste YouTube link  (Ctrl + V)"), height=40,
                                       fg_color=T.SURFACE_2, border_width=0, text_color=T.TEXT,
                                       placeholder_text_color=T.TEXT_3, font=T.F(14))
         self.url_entry.grid(row=0, column=1, sticky="ew", padx=(0, 4), pady=2)
         self.clear_btn = button(field, "", self.clear_url, "ghost", icon_name="x", size="sm", width=30)
         self.clear_btn.grid(row=0, column=2, padx=(0, 6))
-        self.paste_btn = button(bar, "Einfügen", self.paste, "secondary", icon_name="paste", size="md", height=44)
+        self.paste_btn = button(bar, _("Paste"), self.paste, "secondary", icon_name="paste", size="md", height=44)
         self.paste_btn.grid(row=0, column=1, padx=(10, 0))
         self.url_entry.bind("<Return>", lambda e: self._force_load())
 
@@ -113,7 +114,7 @@ class DownloadPage(ctk.CTkFrame):
                                                                                      pady=8)
         self.clip_lbl = label(self.clip_chip, "", 12, T.TEXT, anchor="w")
         self.clip_lbl.grid(row=0, column=1, sticky="ew")
-        button(self.clip_chip, "Übernehmen", self._take_clip, "primary", size="sm").grid(row=0, column=2, padx=4)
+        button(self.clip_chip, _("Apply"), self._take_clip, "primary", size="sm").grid(row=0, column=2, padx=4)
         button(self.clip_chip, "", lambda: self.clip_chip.grid_remove(), "ghost", icon_name="x", size="sm",
                width=28).grid(row=0, column=3, padx=(0, 6))
         self.clip_pending = None
@@ -131,10 +132,10 @@ class DownloadPage(ctk.CTkFrame):
         info = ctk.CTkFrame(v, fg_color="transparent")
         info.grid(row=0, column=1, sticky="new", padx=(18, 0))
         info.grid_columnconfigure(0, weight=1)
-        self.title_lbl = label(info, "Noch kein Video", 18, T.TEXT, "bold", kind="display", anchor="w",
+        self.title_lbl = label(info, _("No video yet"), 18, T.TEXT, "bold", kind="display", anchor="w",
                                justify="left", wraplength=420)
         self.title_lbl.grid(row=0, column=0, sticky="ew")
-        self.meta_lbl = label(info, "Kopier einen YouTube-Link – Snipload erkennt ihn automatisch.", 13,
+        self.meta_lbl = label(info, _("Copy a YouTube link – Snipload picks it up automatically."), 13,
                               T.TEXT_3, anchor="w", justify="left", wraplength=420)
         self.meta_lbl.grid(row=1, column=0, sticky="ew", pady=(6, 0))
         # Textumbruch an die tatsaechliche Breite anpassen (kleine Bildschirme)
@@ -146,10 +147,10 @@ class DownloadPage(ctk.CTkFrame):
         info.bind("<Configure>", rewrap)
         acts = ctk.CTkFrame(v, fg_color="transparent", height=1)
         acts.grid(row=1, column=1, sticky="sw", padx=(18, 0))
-        self.yt_btn = button(acts, "Auf YouTube ab Start ansehen", self.open_on_youtube, "secondary",
+        self.yt_btn = button(acts, _("Watch on YouTube from start"), self.open_on_youtube, "secondary",
                              icon_name="external", size="sm")
         self.yt_btn.grid(row=0, column=0)
-        self.retry_btn = button(acts, "Erneut laden", self._force_load, "secondary", icon_name="refresh", size="sm")
+        self.retry_btn = button(acts, _("Reload"), self._force_load, "secondary", icon_name="refresh", size="sm")
         self.yt_btn.grid_remove()
         self.retry_btn.grid_remove()
         self.shimmer = Shimmer(self, [self.preview])
@@ -163,10 +164,10 @@ class DownloadPage(ctk.CTkFrame):
         hd.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 4))
         hd.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(hd, text="", image=icon("scissors", 16, T.TEXT_2)).grid(row=0, column=0, padx=(0, 8))
-        label(hd, "Abschnitt", 15, T.TEXT, "bold", kind="display").grid(row=0, column=1, sticky="w")
-        self.whole_btn = button(hd, "Ganzes Video", self.whole_video, "ghost", icon_name="film", size="sm")
+        label(hd, _("Section"), 15, T.TEXT, "bold", kind="display").grid(row=0, column=1, sticky="w")
+        self.whole_btn = button(hd, _("Whole video"), self.whole_video, "ghost", icon_name="film", size="sm")
         self.whole_btn.grid(row=0, column=2, padx=(6, 0))
-        self.linkt_btn = button(hd, "Ab Link-Zeit", self._from_link_time, "ghost", icon_name="link", size="sm")
+        self.linkt_btn = button(hd, _("From link time"), self._from_link_time, "ghost", icon_name="link", size="sm")
 
         scale = ctk.ScalingTracker.get_widget_scaling(c)
         self.timeline = Timeline(c, scale, self._timeline_changed, self._timeline_hover, bg=T.SURFACE)
@@ -176,18 +177,17 @@ class DownloadPage(ctk.CTkFrame):
         row.grid(row=2, column=0, sticky="ew", padx=18, pady=(10, 16))
         row.grid_columnconfigure(1, weight=1)
         self.start_f = TimeField(row, lambda: self._fields_changed("a"), lambda: self._fields_changed("a", soft=True),
-                                 "START")
+                                 _("START"))
         self.start_f.grid(row=0, column=0, sticky="w")
         mid = ctk.CTkFrame(row, fg_color="transparent")
         mid.grid(row=0, column=1)
-        label(mid, "LÄNGE", 11, T.TEXT_3, "bold").pack()
+        label(mid, _("LENGTH"), 11, T.TEXT_3, "bold").pack()
         self.len_lbl = label(mid, "–", 22, T.TEXT, "bold", kind="display")
         self.len_lbl.pack()
         self.end_f = TimeField(row, lambda: self._fields_changed("b"), lambda: self._fields_changed("b", soft=True),
-                               "ENDE")
+                               _("END"))
         self.end_f.grid(row=0, column=2, sticky="e")
-        self.keys_lbl = label(c, "Tipp: In die Leiste klicken, dann ← → bewegen den Griff (Umschalt = 5 s, "
-                                 "Alt = 0,1 s), Tab wechselt zwischen Start und Ende.", 11, T.TEXT_3, anchor="w")
+        self.keys_lbl = label(c, _("Tip: click the bar, then ← → move the handle (Shift = 5 s, Alt = 0.1 s), Tab switches between start and end."), 11, T.TEXT_3, anchor="w")
         self.keys_lbl.grid(row=3, column=0, sticky="ew", padx=18, pady=(0, 14))
         self.start_f.set(0)
         self.end_f.set(60)
@@ -200,20 +200,20 @@ class DownloadPage(ctk.CTkFrame):
         hd = ctk.CTkFrame(c, fg_color="transparent")
         hd.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(16, 6))
         ctk.CTkLabel(hd, text="", image=icon("sparkles", 16, T.TEXT_2)).grid(row=0, column=0, padx=(0, 8))
-        label(hd, "Ausgabe", 15, T.TEXT, "bold", kind="display").grid(row=0, column=1, sticky="w")
+        label(hd, _("Output"), 15, T.TEXT, "bold", kind="display").grid(row=0, column=1, sticky="w")
 
         left = ctk.CTkFrame(c, fg_color="transparent")
         left.grid(row=1, column=0, sticky="new", padx=(18, 9), pady=(4, 0))
         left.grid_columnconfigure(0, weight=1)
-        label(left, "INHALT", 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        label(left, _("CONTENT"), 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
         self.kind_seg = segmented(left, KIND_VALUES, command=lambda v: self._apply_kind(save=True))
         self.kind_seg.grid(row=1, column=0, sticky="ew")
-        self.kind_seg.set("Nur Ton" if self.cfg.get("kind") == "audio" else "Video")
+        self.kind_seg.set(_("Audio only") if self.cfg.get("kind") == "audio" else _("Video"))
 
         qf = ctk.CTkFrame(c, fg_color="transparent")
         qf.grid(row=1, column=1, sticky="new", padx=(9, 18), pady=(4, 0))
         qf.grid_columnconfigure(0, weight=1)
-        self.q_title = label(qf, "QUALITÄT", 11, T.TEXT_3, "bold")
+        self.q_title = label(qf, _("QUALITY"), 11, T.TEXT_3, "bold")
         self.q_title.grid(row=0, column=0, sticky="w", pady=(0, 5))
         self.q_menu = option_menu(qf, QUALITY_VALUES, command=lambda v: self._save_opts())
         self.q_menu.set(QUALITY_LABELS.get(self.cfg.get("quality"), QUALITY_LABELS["best"]))
@@ -224,10 +224,10 @@ class DownloadPage(ctk.CTkFrame):
         right = ctk.CTkFrame(c, fg_color="transparent")
         right.grid(row=2, column=0, columnspan=2, sticky="new", padx=18, pady=(14, 0))
         right.grid_columnconfigure(0, weight=1)
-        label(right, "FORMAT", 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        label(right, _("FORMAT"), 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
         self.aspect_seg = segmented(right, ASPECT_VALUES, command=lambda v: self._apply_kind(save=True))
         self.aspect_seg.grid(row=1, column=0, sticky="ew")
-        self.aspect_seg.set(ASPECT_LABELS.get(self.cfg.get("aspect"), "Original"))
+        self.aspect_seg.set(ASPECT_LABELS.get(self.cfg.get("aspect"), _("Original")))
         self.aspect_hint = label(right, "", 12, T.TEXT_3, anchor="w", justify="left", wraplength=700)
         self.aspect_hint.grid(row=2, column=0, sticky="ew", pady=(8, 0))
 
@@ -238,7 +238,7 @@ class DownloadPage(ctk.CTkFrame):
             self.fc_text.configure(wraplength=max(180, w - 260))
         right.bind("<Configure>", rewrap_right)
         self.also_var = tk.BooleanVar(value=bool(self.cfg.get("also_full", False)))
-        self.also_sw = switch(right, "Zusätzlich das normale Video speichern", self.also_var, self._also_changed)
+        self.also_sw = switch(right, _("Also save the normal video"), self.also_var, self._also_changed)
         self.fc_row = ctk.CTkFrame(right, fg_color=T.SURFACE_2, corner_radius=T.RADIUS_SM, border_width=1,
                                    border_color=T.BORDER)
         self.fc_row.grid_columnconfigure(1, weight=1)
@@ -249,16 +249,16 @@ class DownloadPage(ctk.CTkFrame):
         self.fc_size = badge(self.fc_row, "", fg=T.ACCENT_SOFT, color=T.TEXT)
         fcb = ctk.CTkFrame(self.fc_row, fg_color="transparent")
         fcb.grid(row=1, column=1, sticky="w", pady=(0, 10))
-        self.fc_edit = button(fcb, "Anpassen …", self.open_facecam_editor, "secondary", size="sm",
+        self.fc_edit = button(fcb, _("Adjust …"), self.open_facecam_editor, "secondary", size="sm",
                               icon_name="monitor")
         self.fc_edit.pack(side="left")
-        self.fc_recheck = button(fcb, "Neu prüfen", self.analyze_facecam, "ghost", size="sm", icon_name="refresh")
+        self.fc_recheck = button(fcb, _("Check again"), self.analyze_facecam, "ghost", size="sm", icon_name="refresh")
         self.fc_recheck.pack(side="left", padx=(6, 0))
 
         nm = ctk.CTkFrame(c, fg_color="transparent")
         nm.grid(row=3, column=0, columnspan=2, sticky="ew", padx=18, pady=(14, 0))
         nm.grid_columnconfigure(0, weight=1)
-        label(nm, "DATEINAME", 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        label(nm, _("FILE NAME"), 11, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", pady=(0, 5))
         self.name_var = tk.StringVar()
         self.name_entry = entry(nm, textvariable=self.name_var)
         self.name_entry.grid(row=1, column=0, sticky="ew")
@@ -271,12 +271,12 @@ class DownloadPage(ctk.CTkFrame):
         fd = ctk.CTkFrame(c, fg_color="transparent")
         fd.grid(row=4, column=0, columnspan=2, sticky="ew", padx=18, pady=(14, 18))
         fd.grid_columnconfigure(1, weight=1)
-        label(fd, "SPEICHERN IN", 11, T.TEXT_3, "bold").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 5))
+        label(fd, _("SAVE TO"), 11, T.TEXT_3, "bold").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 5))
         ctk.CTkLabel(fd, text="", image=icon("folder", 16, T.TEXT_2)).grid(row=1, column=0, padx=(2, 8))
         self.folder_lbl = label(fd, "", 13, T.TEXT, anchor="w")
         self.folder_lbl.grid(row=1, column=1, sticky="ew")
-        button(fd, "Ändern", self.pick_folder, "secondary", size="sm").grid(row=1, column=2, padx=(8, 0))
-        button(fd, "Öffnen", lambda: open_path(self.cfg["folder"]), "ghost", size="sm",
+        button(fd, _("Change"), self.pick_folder, "secondary", size="sm").grid(row=1, column=2, padx=(8, 0))
+        button(fd, _("Open"), lambda: open_path(self.cfg["folder"]), "ghost", size="sm",
                icon_name="external").grid(row=1, column=3, padx=(6, 0))
         self._show_folder()
 
@@ -296,10 +296,10 @@ class DownloadPage(ctk.CTkFrame):
         self.sum1.grid(row=0, column=0, sticky="w")
         self.sum2 = label(self.idle, "", 12, T.TEXT_3, anchor="w")
         self.sum2.grid(row=1, column=0, sticky="w")
-        self.queue_btn = button(self.idle, "Zur Warteschlange", self.add_to_queue, "secondary", icon_name="plus",
+        self.queue_btn = button(self.idle, _("Add to queue"), self.add_to_queue, "secondary", icon_name="plus",
                                 size="lg", width=190)
         self.queue_btn.grid(row=0, column=1, rowspan=2, padx=(0, 10))
-        self.go_btn = button(self.idle, "Herunterladen", self.download, "primary", icon_name="download", size="lg",
+        self.go_btn = button(self.idle, _("Download"), self.download, "primary", icon_name="download", size="lg",
                              width=200)
         self.go_btn.grid(row=0, column=2, rowspan=2)
 
@@ -317,7 +317,7 @@ class DownloadPage(ctk.CTkFrame):
         self.run_bar.grid(row=1, column=0, sticky="ew", pady=(8, 4))
         self.run_detail = label(self.run, "", 12, T.TEXT_3, anchor="w")
         self.run_detail.grid(row=2, column=0, sticky="w")
-        self.cancel_btn = button(self.run, "Abbrechen", self.cancel, "secondary", icon_name="x", size="lg", width=150)
+        self.cancel_btn = button(self.run, _("Cancel"), self.cancel, "secondary", icon_name="x", size="lg", width=150)
         self.cancel_btn.grid(row=0, column=1, rowspan=3, padx=(20, 0))
 
         # Fertig / Fehler
@@ -332,14 +332,14 @@ class DownloadPage(ctk.CTkFrame):
         self.done2.grid(row=1, column=1, sticky="w")
         self.done_btns = ctk.CTkFrame(self.done, fg_color="transparent")
         self.done_btns.grid(row=0, column=2, rowspan=2)
-        self.b_new = button(self.done_btns, "Nächster Clip", self.next_clip, "ghost", icon_name="plus", size="lg")
-        self.b_folder = button(self.done_btns, "Im Ordner zeigen", self.show_result, "secondary", icon_name="folder",
+        self.b_new = button(self.done_btns, _("Next clip"), self.next_clip, "ghost", icon_name="plus", size="lg")
+        self.b_folder = button(self.done_btns, _("Show in folder"), self.show_result, "secondary", icon_name="folder",
                                size="lg")
-        self.b_play = button(self.done_btns, "Abspielen", self.play_result, "primary", icon_name="play", size="lg",
+        self.b_play = button(self.done_btns, _("Play"), self.play_result, "primary", icon_name="play", size="lg",
                              width=150)
-        self.b_retry = button(self.done_btns, "Erneut versuchen", self.retry, "primary", icon_name="refresh",
+        self.b_retry = button(self.done_btns, _("Try again"), self.retry, "primary", icon_name="refresh",
                               size="lg")
-        self.b_close = button(self.done_btns, "Schließen", self.dismiss, "secondary", size="lg")
+        self.b_close = button(self.done_btns, _("Close"), self.dismiss, "secondary", size="lg")
 
     # ================================================================ Link & Infos
     def get_url(self):
@@ -366,7 +366,7 @@ class DownloadPage(ctk.CTkFrame):
             self.app.clip_seen = txt
             self.set_url(txt, load_now=True)
         else:
-            self.app.toast("In der Zwischenablage ist kein Link.", "warn")
+            self.app.toast(_("There's no link in the clipboard."), "warn")
 
     def offer_clip(self, url):
         """Neuer YouTube-Link in der Zwischenablage."""
@@ -375,11 +375,11 @@ class DownloadPage(ctk.CTkFrame):
             return
         if not cur or not self.info:
             self.set_url(url, load_now=True)
-            self.app.toast("Link aus der Zwischenablage übernommen.", "info", 2600)
+            self.app.toast(_("Link taken from the clipboard."), "info", 2600)
         else:
             self.clip_pending = url
             short = url if len(url) < 60 else url[:57] + "…"
-            self.clip_lbl.configure(text=f"Neuer Link in der Zwischenablage:  {short}")
+            self.clip_lbl.configure(text=_("New link in the clipboard:  {short}").format(short=short))
             self.clip_chip.grid(row=1, column=0, sticky="ew", padx=18, pady=(10, 0))
 
     def _take_clip(self):
@@ -462,18 +462,18 @@ class DownloadPage(ctk.CTkFrame):
         self.linkt_btn.grid_remove()
         self.url_icon.configure(image=icon("link", 17, T.TEXT_3))
         if loading:
-            self.title_lbl.configure(text="Lade Video …", text_color=T.TEXT_2)
-            self.meta_lbl.configure(text="Hole Titel, Länge und Vorschaubilder.", text_color=T.TEXT_3)
+            self.title_lbl.configure(text=_("Loading the video …"), text_color=T.TEXT_2)
+            self.meta_lbl.configure(text=_("Getting title, length and preview images."), text_color=T.TEXT_3)
             self.shimmer.start()
         else:
             self.shimmer.stop()
             url = self.get_url()
             if url:
-                self.title_lbl.configure(text="Das ist kein gültiger Link", text_color=T.TEXT)
-                self.meta_lbl.configure(text="Ein YouTube-Link beginnt mit https://", text_color=T.TEXT_3)
+                self.title_lbl.configure(text=_("That's not a valid link"), text_color=T.TEXT)
+                self.meta_lbl.configure(text=_("A YouTube link starts with https://"), text_color=T.TEXT_3)
             else:
-                self.title_lbl.configure(text="Noch kein Video", text_color=T.TEXT)
-                self.meta_lbl.configure(text="Kopier einen YouTube-Link – Snipload erkennt ihn automatisch.",
+                self.title_lbl.configure(text=_("No video yet"), text_color=T.TEXT)
+                self.meta_lbl.configure(text=_("Copy a YouTube link – Snipload picks it up automatically."),
                                         text_color=T.TEXT_3)
         if self.job is not None and not self.job.active:
             self.job = None
@@ -484,8 +484,8 @@ class DownloadPage(ctk.CTkFrame):
             self.shimmer.stop()
             self.timeline.loading = False
             self.timeline.redraw()
-            self.title_lbl.configure(text="yt-dlp fehlt noch", text_color=T.TEXT)
-            self.meta_lbl.configure(text="Snipload braucht yt-dlp, um Videos zu laden.", text_color=T.TEXT_3)
+            self.title_lbl.configure(text=_("yt-dlp is still missing"), text_color=T.TEXT)
+            self.meta_lbl.configure(text=_("Snipload needs yt-dlp to load videos."), text_color=T.TEXT_3)
             self.app.offer_install()
             return
         gen = self.info_gen
@@ -499,7 +499,7 @@ class DownloadPage(ctk.CTkFrame):
             self.app.post(lambda: self._on_error(gen, msg))
             return
         except Exception as ex:
-            msg = f"Unerwarteter Fehler: {ex}"
+            msg = _("Unexpected error: {ex}").format(ex=ex)
             self.app.post(lambda: self._on_error(gen, msg))
             return
         thumb_path = None
@@ -513,13 +513,13 @@ class DownloadPage(ctk.CTkFrame):
             return
         self.shimmer.stop()
         self.timeline.loading = False
-        self.timeline.hint = "Mit diesem Link klappt es nicht."
+        self.timeline.hint = _("This link doesn't work.")
         self.timeline.redraw()
         self.preview.configure(image=icon("alert", 34, T.DANGER), fg_color=T.DANGER_SOFT)
-        self.title_lbl.configure(text="Video konnte nicht geladen werden", text_color=T.TEXT)
+        self.title_lbl.configure(text=_("Couldn't load the video"), text_color=T.TEXT)
         self.meta_lbl.configure(text=msg, text_color=T.TEXT_2)
         self.retry_btn.grid(row=0, column=0)
-        self.timeline.hint = "Füg oben einen Link ein – dann legst du hier Start und Ende fest."
+        self.timeline.hint = _("Paste a link above – then set the start and end here.")
 
     def _on_info(self, gen, info, pil, thumb_path):
         if gen != self.info_gen:
@@ -530,12 +530,12 @@ class DownloadPage(ctk.CTkFrame):
         self.thumb_pil = pil
         self.thumb_path = thumb_path
         self.url_icon.configure(image=icon("check", 17, T.SUCCESS))
-        title = info.get("title") or "Unbekannter Titel"
+        title = info.get("title") or _("Unknown title")
         self.title_lbl.configure(text=title if len(title) <= 110 else title[:108] + "…", text_color=T.TEXT)
         who = info.get("channel") or info.get("uploader") or ""
         parts = [who]
         if info.get("view_count"):
-            parts.append(f"{fmt_count(info['view_count'])} Aufrufe")
+            parts.append(_("{fmt_count} views").format(fmt_count=fmt_count(info['view_count'])))
         if info.get("upload_date"):
             parts.append(fmt_upload_date(info["upload_date"]))
         self.meta_lbl.configure(text="  ·  ".join(p for p in parts if p), text_color=T.TEXT_2)
@@ -769,32 +769,27 @@ class DownloadPage(ctk.CTkFrame):
 
     # ================================================================ Ausgabe
     def _apply_kind(self, save=False):
-        audio = self.kind_seg.get() == "Nur Ton"
+        audio = self.kind_seg.get() == _("Audio only")
         if audio:
-            self.q_title.configure(text="AUDIOFORMAT")
+            self.q_title.configure(text=_("AUDIO FORMAT"))
             self.q_menu.grid_remove()
             self.a_menu.grid(row=1, column=0, sticky="ew")
             self.aspect_seg.configure(state="disabled", selected_color=T.SURFACE_3, selected_hover_color=T.SURFACE_3)
-            self.aspect_hint.configure(text="Beim reinen Ton gibt es kein Seitenformat.")
+            self.aspect_hint.configure(text=_("Audio only has no aspect ratio."))
             self.fc_row.grid_forget()
         else:
-            self.q_title.configure(text="QUALITÄT")
+            self.q_title.configure(text=_("QUALITY"))
             self.a_menu.grid_remove()
             self.q_menu.grid(row=1, column=0, sticky="ew")
             self.aspect_seg.configure(state="normal", selected_color=T.ACCENT, selected_hover_color=T.ACCENT_HOVER)
             asp = _key_for(ASPECT_LABELS, self.aspect_seg.get())
             self.aspect_hint.configure(text={
-                "original": "Wie auf YouTube, ohne Zuschnitt.",
-                "crop916": "Hochformat 1080×1920 für Shorts, TikTok und Reels – die Bildmitte wird ausgeschnitten.",
-                "blur916": "Hochformat 1080×1920: ganzes Bild in der Mitte, darüber und darunter unscharfer "
-                           "Hintergrund.",
-                "facecam": "Hochformat 1080×1920: Facecam oben, Gameplay darunter. Snipload sucht die Facecam "
-                           "automatisch und passt die Größen an – unter „Anpassen“ machst du Facecam und "
-                           "Gameplay größer oder kleiner.",
-                "facecam_raw": "Nur die Facecam als eigenes Video – 1:1 in Originalgröße, pixelgenau "
-                               "ausgeschnitten, ohne Rahmen. Dafür lädt Snipload das Video in bester Qualität.",
-                "orig_facecam": "Zwei Dateien aus einem Download: das normale Video und die Facecam 1:1 in "
-                                "Originalgröße (pixelgenau, ohne Rahmen). Lädt in bester Qualität.",
+                "original": _("Like on YouTube, no cropping."),
+                "crop916": _("Portrait 1080×1920 for Shorts, TikTok and Reels – the center of the frame is cut out."),
+                "blur916": _("Portrait 1080×1920: the whole frame in the middle, blurred background above and below."),
+                "facecam": _("Portrait 1080×1920: facecam on top, gameplay below. Snipload finds the facecam automatically and sets the sizes – under “Adjust” you can make the facecam and gameplay bigger or smaller."),
+                "facecam_raw": _("Just the facecam as its own video – 1:1 at original size, cut out pixel-perfect, without the border. Snipload downloads the video in best quality for this."),
+                "orig_facecam": _("Two files from one download: the normal video and the facecam 1:1 at original size (pixel-perfect, without the border). Downloads in best quality."),
             }.get(asp, ""))
             if asp in ("facecam_raw", "orig_facecam"):
                 self.q_menu.set(QUALITY_LABELS["best"])
@@ -838,7 +833,7 @@ class DownloadPage(ctk.CTkFrame):
 
     # ================================================================ Facecam
     def _facecam_mode(self):
-        if self.kind_seg.get() == "Nur Ton":
+        if self.kind_seg.get() == _("Audio only"):
             return None
         a = _key_for(ASPECT_LABELS, self.aspect_seg.get())
         if a == "orig_facecam":
@@ -872,8 +867,7 @@ class DownloadPage(ctk.CTkFrame):
         self._update_facecam_ui()
         fmt, gen = tools.pick_frame_format(self.info, max_h=None) or self.frame_fmt, self.info_gen
         if not fmt or not facecam.available():
-            self.cam.update(busy=False, result={"ok": False, "message": "Für dieses Video gibt es keine "
-                                                "Einzelbilder – leg die Facecam bitte von Hand fest."})
+            self.cam.update(busy=False, result={"ok": False, "message": _("There are no frames available for this video – please set the facecam by hand.")})
             if self.thumb_pil is not None:
                 self.cam["frames"] = [(s, self.thumb_pil.convert("RGB"))]
             self._update_facecam_ui()
@@ -899,10 +893,10 @@ class DownloadPage(ctk.CTkFrame):
                      for t, im in frames]
             res = facecam.analyze(small, self._aspect())
             if res.get("ok") and not res.get("fullscreen"):
-                good = [t for t, _ in frames if t not in set(res.get("missing") or [])]
+                good = [t for t, _x in frames if t not in set(res.get("missing") or [])]
                 res["px"] = facecam.refine(frames, res["box"], good)
         except Exception as exc:
-            res = {"ok": False, "message": f"Analyse fehlgeschlagen: {exc}"}
+            res = {"ok": False, "message": _("Analysis failed: {exc}").format(exc=exc)}
         self.app.post(lambda: self._facecam_done(gen, token, frames, res))
 
     def _facecam_done(self, gen, token, frames, res):
@@ -921,8 +915,8 @@ class DownloadPage(ctk.CTkFrame):
             self.cam["px"] = px
         self._update_facecam_ui()
         if res.get("ok") and not res.get("fullscreen") and res.get("coverage", 0) < 0.8:
-            self.app.toast("Die Facecam ist nicht im ganzen Abschnitt zu sehen – schau es dir kurz an.", "warn", 7000,
-                           action=self.open_facecam_editor, action_text="Ansehen", key="fc")
+            self.app.toast(_("The facecam isn't visible in the whole section – take a quick look."), "warn", 7000,
+                           action=self.open_facecam_editor, action_text=_("View"), key="fc")
 
     def _update_facecam_ui(self, start_if_needed=False):
         if not hasattr(self, "fc_row"):
@@ -934,7 +928,7 @@ class DownloadPage(ctk.CTkFrame):
         c = self.cam
         if not self.info:
             self.fc_icon.configure(image=icon("info", 16, T.TEXT_2))
-            self.fc_text.configure(text="Sobald das Video geladen ist, sucht Snipload die Facecam.")
+            self.fc_text.configure(text=_("As soon as the video has loaded, Snipload looks for the facecam."))
             self.fc_edit.configure(state="disabled")
             self.fc_recheck.pack_forget()
             return
@@ -950,30 +944,30 @@ class DownloadPage(ctk.CTkFrame):
         if c.get("busy"):
             i, n = c.get("progress", (0, 10))
             self.fc_icon.configure(image=icon("search", 16, T.ACCENT))
-            self.fc_text.configure(text=f"Hole Bilder aus dem Abschnitt … {i}/{n}" if i < n else
-                                   "Werte die Bilder aus und suche die Facecam …")
+            self.fc_text.configure(text=_("Getting frames from the section … {i}/{n}").format(i=i, n=n) if i < n else
+                                   _("Analyzing the frames and looking for the facecam …"))
             self.fc_edit.configure(state="disabled")
             self.fc_recheck.pack_forget()
             return
         r = c.get("result") or {}
         lay = c.get("layout") or {}
         self.fc_edit.configure(state="normal")
-        self.fc_edit.configure(text="Größen & Facecam …" if self._facecam_mode() == "facecam" else "Anpassen …")
+        self.fc_edit.configure(text=_("Sizes & facecam …") if self._facecam_mode() == "facecam" else _("Adjust …"))
         changed = rng is not None and c.get("range") and (abs(rng[0] - c["range"][0]) > 3 or
                                                            abs(rng[1] - c["range"][1]) > 3)
         if lay.get("manual"):
-            ic, col, txt = "check", T.SUCCESS, "Facecam von dir festgelegt."
+            ic, col, txt = "check", T.SUCCESS, _("Facecam set by you.")
         elif r.get("fullscreen"):
-            ic, col, txt = "info", T.TEXT_2, (r.get("message") or "") + " Tipp: Nimm lieber „Shorts 9:16“."
+            ic, col, txt = "info", T.TEXT_2, (r.get("message") or "") + _(" Tip: use “Shorts 9:16” instead.")
         elif r.get("ok") and r.get("coverage", 0) >= 1.0:
             ic, col, txt = "check", T.SUCCESS, r.get("message")
         elif r.get("ok"):
             ic, col, txt = "alert", T.WARN, r.get("message")
         else:
-            ic, col, txt = "alert", T.WARN, (r.get("message") or "Keine Facecam erkannt.") + \
-                " Klick auf „Anpassen“ und leg sie fest."
+            ic, col, txt = "alert", T.WARN, (r.get("message") or _("No facecam detected.")) + \
+                _(" Click “Adjust” and set it.")
         if changed and not lay.get("manual"):
-            txt += "  Der Zeitraum hat sich geändert – „Neu prüfen“ checkt ihn nochmal."
+            txt += _("  The time range has changed – “Check again” checks it once more.")
         self.fc_icon.configure(image=icon(ic, 16, col))
         self.fc_text.configure(text=txt)
         self.fc_recheck.pack(side="left", padx=(6, 0))
@@ -989,7 +983,7 @@ class DownloadPage(ctk.CTkFrame):
         from .facecam_editor import FacecamEditor
         c = self.cam or {}
         if c.get("busy"):
-            self.app.toast("Die Facecam wird gerade gesucht – einen Moment.", "info", 2500, key="fc")
+            self.app.toast(_("Looking for the facecam – one moment."), "info", 2500, key="fc")
             return
         frames = c.get("frames") or []
         if not frames:
@@ -999,7 +993,7 @@ class DownloadPage(ctk.CTkFrame):
             if img is None and self.thumb_pil is not None:
                 img = self.thumb_pil.convert("RGB")
             if img is None:
-                self.app.toast("Erst ein Video laden.", "warn")
+                self.app.toast(_("Load a video first."), "warn")
                 return
             frames = [(self.cur_t or 0, img)]
 
@@ -1033,7 +1027,7 @@ class DownloadPage(ctk.CTkFrame):
 
     def _save_opts(self):
         c = self.cfg
-        c["kind"] = "audio" if self.kind_seg.get() == "Nur Ton" else "video"
+        c["kind"] = "audio" if self.kind_seg.get() == _("Audio only") else "video"
         c["quality"] = _key_for(QUALITY_LABELS, self.q_menu.get()) or "best"
         c["audio_fmt"] = self._audio_fmt()
         c["aspect"] = _key_for(ASPECT_LABELS, self.aspect_seg.get()) or "original"
@@ -1078,18 +1072,18 @@ class DownloadPage(ctk.CTkFrame):
     # ================================================================ Starten
     def _make_job(self):
         if not self.info:
-            self.app.toast("Erst einen Link einfügen und warten, bis das Video geladen ist.", "warn")
+            self.app.toast(_("Paste a link first and wait until the video has loaded."), "warn")
             return None
         try:
             s, e = self.current_range()
         except ValueError:
-            self.app.toast("Start oder Ende ist keine gültige Zeit (z. B. 00:03:00).", "error")
+            self.app.toast(_("Start or end isn't a valid time (e.g. 00:03:00)."), "error")
             return None
         if e <= s:
-            self.app.toast("Das Ende muss nach dem Start liegen.", "error")
+            self.app.toast(_("The end has to be after the start."), "error")
             return None
         if self.vdur and s >= self.vdur:
-            self.app.toast(f"Der Start liegt hinter dem Videoende ({fmt_short(self.vdur)}).", "error")
+            self.app.toast(_("The start is past the end of the video ({time}).").format(time=fmt_short(self.vdur)), "error")
             return None
         if self.vdur:
             e = min(e, self.vdur)
@@ -1097,12 +1091,12 @@ class DownloadPage(ctk.CTkFrame):
         try:
             os.makedirs(folder, exist_ok=True)
         except OSError:
-            self.app.toast("Der Zielordner ist ungültig. Wähle einen anderen.", "error")
+            self.app.toast(_("The target folder is invalid. Choose another one."), "error")
             return None
         if self._facecam_selected():
             c = self.cam
             if c and c.get("busy"):
-                self.app.toast("Die Facecam wird noch erkannt – einen Moment.", "info", 3000, key="fc")
+                self.app.toast(_("Still detecting the facecam – one moment."), "info", 3000, key="fc")
                 return None
             if not c or not (c.get("layout") or {}).get("cam"):
                 self.open_facecam_editor()
@@ -1112,7 +1106,7 @@ class DownloadPage(ctk.CTkFrame):
         from ..util import safe_filename
         name = safe_filename(self.name_var.get().strip()) if self.name_var.get().strip() else \
             build_name(self.cfg.get("name_template"), self.info, s, e, False)
-        kind = "audio" if self.kind_seg.get() == "Nur Ton" else "video"
+        kind = "audio" if self.kind_seg.get() == _("Audio only") else "video"
         ext = self._audio_fmt() if kind == "audio" else "mp4"
         # vorhandene Datei nicht ueberschreiben, ausser sie stammt aus der Warteschlange
         name = self.app.unique_name(folder, name, ext)
@@ -1129,7 +1123,7 @@ class DownloadPage(ctk.CTkFrame):
             if job.aspect == "facecam_raw":
                 px = self.cam.get("px")
                 if not px:
-                    self.app.toast("Leg die Facecam bitte erst fest (Anpassen …).", "warn")
+                    self.app.toast(_("Please set the facecam first (Adjust …)."), "warn")
                     return None
                 job.cam_px = dict(px)
                 job.quality = "best"
@@ -1151,8 +1145,8 @@ class DownloadPage(ctk.CTkFrame):
             return
         self.app.queue.add(job)
         n = len(self.app.queue.pending())
-        self.app.toast(f"Zur Warteschlange hinzugefügt – {n} offen.", "success", 3500,
-                       action=lambda: self.app.show_page("queue"), action_text="Ansehen", key="queued")
+        self.app.toast(_("Added to the queue – {n} pending.").format(n=n), "success", 3500,
+                       action=lambda: self.app.show_page("queue"), action_text=_("View"), key="queued")
         # naechster Abschnitt beginnt, wo der letzte aufgehoert hat
         try:
             s, e = self.current_range()
@@ -1205,25 +1199,25 @@ class DownloadPage(ctk.CTkFrame):
     # ================================================================ Aktionsleiste aktualisieren
     def _summary_text(self):
         if not self.info:
-            return "Noch kein Video geladen", "Füg oben einen YouTube-Link ein."
+            return _("No video loaded yet"), _("Paste a YouTube link above.")
         try:
             s, e = self.current_range()
-            rng = f"{fmt_short(s)} – {fmt_short(e)}  ·  {fmt_duration_words(max(0, e - s))}"
+            rng = _("{time} – {time2}  ·  {fmt_duration_words}").format(time=fmt_short(s), time2=fmt_short(e), fmt_duration_words=fmt_duration_words(max(0, e - s)))
         except ValueError:
-            rng = "Zeiten prüfen"
-        audio = self.kind_seg.get() == "Nur Ton"
+            rng = _("Check the times")
+        audio = self.kind_seg.get() == _("Audio only")
         if audio:
-            fmt = f"Nur Ton · {self.a_menu.get()}"
+            fmt = _("Audio only · {get}").format(get=self.a_menu.get())
         else:
-            fmt = f"Video · {self.q_menu.get()}"
+            fmt = _("Video · {get}").format(get=self.q_menu.get())
             asp = self.aspect_seg.get()
-            if asp != "Original":
+            if asp != _("Original"):
                 fmt += f" · {asp}"
-        if (not audio and self.aspect_seg.get() not in ("Original", "Original + Facecam")
+        if (not audio and self.aspect_seg.get() not in (_("Original"), _("Original + Facecam"))
                 and self.also_var.get()):
-            fmt += " + normales Video"
+            fmt += _(" + normal video")
         folder = os.path.basename(self.cfg.get("folder") or "") or self.cfg.get("folder")
-        return f"Clip {rng}", f"{fmt}  →  {folder}"
+        return _("Clip {rng}").format(rng=rng), f"{fmt}  →  {folder}"
 
     def _refresh_bar(self, force=False):
         j = self.job
@@ -1267,9 +1261,9 @@ class DownloadPage(ctk.CTkFrame):
         elif state == "run":
             if j.status == Job.WAITING:
                 ahead = sum(1 for x in self.app.queue.jobs if x.active and x.id < j.id)
-                self.run_stage.configure(text="In der Warteschlange")
-                self.run_detail.configure(text=f"{ahead} Clip(s) davor – startet automatisch." if ahead else
-                                          "Startet gleich …")
+                self.run_stage.configure(text=_("In the queue"))
+                self.run_detail.configure(text=_("{ahead} clip(s) ahead – starts automatically.").format(ahead=ahead) if ahead else
+                                          _("Starting in a moment …"))
                 self.run_pct.configure(text="")
                 self.run_bar.set(0)
             else:
@@ -1280,9 +1274,9 @@ class DownloadPage(ctk.CTkFrame):
                 self.run_bar.set(j.progress)
         elif state == "done":
             name = os.path.basename(j.file) if j.file else j.name
-            self.done1.configure(text="Fertig!  " + (name if len(name) <= 34 else name[:32].rstrip() + "…"))
+            self.done1.configure(text=_("Done!  ") + (name if len(name) <= 34 else name[:32].rstrip() + "…"))
             extra = [fmt_size(j.size), j.detail]
             self.done2.configure(text="  ·  ".join(x for x in extra if x))
         elif state == "fail":
-            self.done1.configure(text="Das hat nicht geklappt")
-            self.done2.configure(text=j.error or "Unbekannter Fehler.")
+            self.done1.configure(text=_("That didn't work"))
+            self.done2.configure(text=j.error or _("Unknown error."))

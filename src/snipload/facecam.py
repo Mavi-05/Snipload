@@ -13,6 +13,7 @@ Alle Koordinaten sind normiert (0..1) bezogen auf Bildbreite/-hoehe.
 import os
 
 from .util import resource_path
+from .i18n import _
 
 _cascades = None
 
@@ -107,7 +108,7 @@ def analyze(frames, aspect=16 / 9):
     res = {"ok": False, "box": None, "coverage": 0.0, "missing": [], "border": False, "fullscreen": False,
            "frames": len(frames), "message": ""}
     if len(frames) < 2:
-        res["message"] = "Konnte keine Bilder aus dem Video holen."
+        res["message"] = _("Couldn't get any frames from the video.")
         return res
     W, H = frames[0][1].size
 
@@ -134,11 +135,11 @@ def analyze(frames, aspect=16 / 9):
             else:
                 clusters.append([cx, cy, [f], {fi}])
     if not clusters:
-        res["message"] = "In diesem Abschnitt wurde kein Gesicht gefunden."
+        res["message"] = _("No face found in this section.")
         return res
     best = max(clusters, key=lambda c: (len(c[3]), sum(f[4] for f in c[2])))
     if len(best[3]) < max(2, int(len(frames) * 0.25)):
-        res["message"] = "Kein Gesicht, das dauerhaft an einer Stelle ist – keine Facecam erkannt."
+        res["message"] = _("No face stays in one place – no facecam detected.")
         return res
     fx = _median([f[0] for f in best[2]])
     fy = _median([f[1] for f in best[2]])
@@ -148,7 +149,7 @@ def analyze(frames, aspect=16 / 9):
     # Vollbild-Kamera (Just Chatting / IRL): Gesicht riesig
     if fw > 0.22:
         res.update(ok=True, fullscreen=True, box=(0.0, 0.0, 1.0, 1.0),
-                   message="Die Kamera füllt das ganze Bild – es gibt keine extra Facecam.")
+                   message=_("The camera fills the whole frame – there is no separate facecam."))
         _coverage(res, per_frame, (0.0, 0.0, 1.0, 1.0))
         return res
 
@@ -156,7 +157,7 @@ def analyze(frames, aspect=16 / 9):
     scale = 480 / W if W > 480 else 1.0
     w_s, h_s = int(W * scale), int(H * scale)
     acc = np.zeros((h_s, w_s), np.float32)
-    for _, im in frames:
+    for _x, im in frames:
         g = cv2.cvtColor(np.asarray(im.convert("RGB").resize((w_s, h_s))), cv2.COLOR_RGB2GRAY)
         g = cv2.GaussianBlur(g, (3, 3), 0)
         acc += (cv2.Canny(g, 40, 120) > 0).astype(np.float32)
@@ -181,7 +182,7 @@ def analyze(frames, aspect=16 / 9):
             edge_i = 0 if stop == -1 else stop - 1
             vals.append((edge_i, 0.5))
         best_i, best_v = max(vals, key=lambda iv: iv[1])
-        avg = sum(v for _, v in vals) / len(vals)
+        avg = sum(v for _x, v in vals) / len(vals)
         if best_v >= 0.5 or (best_v >= 0.28 and best_v >= 3 * max(avg, 0.02)):
             return best_i, best_v
         return None, best_v
@@ -200,7 +201,7 @@ def analyze(frames, aspect=16 / 9):
     # 1. Durchgang nur auf Hoehe/Breite des Gesichts, danach zweimal ueber die ganze gefundene Box:
     # ein echter Facecam-Rand laeuft ueber die volle Breite/Hoehe, Spiel-Kanten nicht
     (left, lv), (right, rv), (top, tv), (bottom, bv) = search(rows, cols)
-    for _ in range(2):
+    for _x in range(2):
         cols2 = (left if left is not None else cols[0], (right + 1) if right is not None else cols[1])
         rows2 = (top if top is not None else rows[0], (bottom + 1) if bottom is not None else rows[1])
         (left, lv), (right, rv), (top, tv), (bottom, bv) = search(rows2, cols2)
@@ -216,7 +217,7 @@ def analyze(frames, aspect=16 / 9):
             if 0 <= row < h_s and ((top is not None and row > py + ph) or (bottom is not None and row < py)):
                 cands.append((float(P[row, left:right + 1].mean()), row))
         if cands:
-            _, row = max(cands)
+            _x, row = max(cands)
             if top is not None:
                 bottom = row
             else:
@@ -229,7 +230,7 @@ def analyze(frames, aspect=16 / 9):
             if 0 <= col < w_s and ((left is not None and col > px + pw) or (right is not None and col < px)):
                 cands.append((float(P[top:bottom + 1, col].mean()), col))
         if cands:
-            _, col = max(cands)
+            _x, col = max(cands)
             if left is not None:
                 right = col
             else:
@@ -263,15 +264,13 @@ def analyze(frames, aspect=16 / 9):
     _coverage(res, per_frame, box)
     pos = _where(box)
     if res["coverage"] >= 1.0:
-        res["message"] = f"Facecam {pos} erkannt – in allen {len(frames)} geprüften Bildern zu sehen."
+        res["message"] = _("Facecam detected {pos} – visible in all {count} checked frames.").format(pos=pos, count=len(frames))
     elif res["coverage"] >= 0.8:
         miss = ", ".join(_fmt(t) for t in res["missing"][:4])
-        res["message"] = (f"Facecam {pos} erkannt – in {res['hits']} von {len(frames)} Bildern zu sehen, "
-                          f"fehlt bei {miss}.")
+        res["message"] = (_("Facecam detected {pos} – visible in {hits} of {count} frames, missing at {miss}.").format(pos=pos, hits=res['hits'], count=len(frames), miss=miss))
     else:
         miss = ", ".join(_fmt(t) for t in res["missing"][:4])
-        res["message"] = (f"Facecam {pos} erkannt, aber nur in {res['hits']} von {len(frames)} Bildern zu sehen "
-                          f"(fehlt z. B. bei {miss}).")
+        res["message"] = (_("Facecam detected {pos}, but only visible in {hits} of {count} frames (missing e.g. at {miss}).").format(pos=pos, hits=res['hits'], count=len(frames), miss=miss))
     return res
 
 
@@ -290,10 +289,13 @@ def _coverage(res, per_frame, box):
 
 def _where(box):
     cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
-    v = "oben" if cy < 0.4 else ("unten" if cy > 0.6 else "")
-    h = "links" if cx < 0.4 else ("rechts" if cx > 0.6 else "")
-    pos = " ".join(x for x in (v, h) if x) or "in der Mitte"
-    return pos
+    v = "top" if cy < 0.4 else ("bottom" if cy > 0.6 else "")
+    h = "left" if cx < 0.4 else ("right" if cx > 0.6 else "")
+    return {
+        ("top", "left"): _("at the top left"), ("top", "right"): _("at the top right"), ("top", ""): _("at the top"),
+        ("bottom", "left"): _("at the bottom left"), ("bottom", "right"): _("at the bottom right"),
+        ("bottom", ""): _("at the bottom"), ("", "left"): _("on the left"), ("", "right"): _("on the right"),
+    }.get((v, h), _("in the center"))
 
 
 def _fmt(t):
@@ -515,7 +517,7 @@ def refine(frames, box, good_times=None):
     pad = int(0.035 * W) + 10
     rx0, ry0 = max(0, int(L) - pad), max(0, int(T_) - pad)
     rx1, ry1 = min(W, int(R) + pad), min(H, int(B) + pad)
-    rgbs = [np.asarray(im.convert("RGB").crop((rx0, ry0, rx1, ry1)), dtype=np.uint8) for _, im in fr]
+    rgbs = [np.asarray(im.convert("RGB").crop((rx0, ry0, rx1, ry1)), dtype=np.uint8) for _x, im in fr]
     stack = np.stack(rgbs).astype(np.float32)                 # (n, h, w, 3)
     mean = stack.mean(axis=0)                                  # mittlere Farbe je Pixel
     tstd = stack.mean(axis=3).std(axis=0)                      # zeitliche Unruhe je Pixel
@@ -558,7 +560,7 @@ def refine(frames, box, good_times=None):
             """Erstes Pixel ab Linie p nach innen, dessen Farbe zum Inneren gehoert."""
             out_col = c_line(clamp(p - inward * 3))
             c = p - inward
-            for _ in range(6):
+            for _x in range(6):
                 if 0 <= c < n and dist(c_line(c), inner_col) < dist(c_line(c), out_col):
                     return c
                 c += inward
@@ -586,7 +588,7 @@ def refine(frames, box, good_times=None):
             band_col = band(min(o, i_) + 1, max(o, i_))[1].mean(axis=0)
             inner_col = c_line(clamp(i_ + inward * 5))
             c = i_ - inward
-            for _ in range(6):
+            for _x in range(6):
                 if 0 <= c < n and dist(c_line(c), inner_col) < dist(c_line(c), band_col):
                     return c, True
                 c += inward

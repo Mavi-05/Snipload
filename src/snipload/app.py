@@ -15,12 +15,13 @@ from . import tools
 from . import updater
 from .icons import icon
 from .jobs import Job, JobQueue
-from .util import (is_video_link, load_settings, looks_like_url, open_path, resource_path, save_settings,
-                   show_in_folder, unique_path, win_dark_titlebar, win_flash, win_sound_done)
+from .util import (clean_env, is_video_link, load_settings, looks_like_url, open_path, resource_path, save_settings,
+                   show_in_folder, unique_path, win_dark_titlebar, win_no_throttle, win_flash, win_sound_done)
 from .widgets import Toaster, badge, button, dialog, label
+from .i18n import _
 
-NAV = [("download", "Neuer Clip", "scissors"), ("queue", "Warteschlange", "queue"),
-       ("history", "Verlauf", "history"), ("settings", "Einstellungen", "settings")]
+NAV = [("download", _("New clip"), "scissors"), ("queue", _("Queue"), "queue"),
+       ("history", _("History"), "history"), ("settings", _("Settings"), "settings")]
 
 
 class App(ctk.CTk):
@@ -32,6 +33,7 @@ class App(ctk.CTk):
         self.cfg = load_settings()
         self.events = queue.Queue()
         self.tool_state = {"checking": True}
+        self._auto_ytdlp_tried = False
         self.clip_seen = None
         self._clip_next = 0
         self._handled = set()
@@ -69,6 +71,12 @@ class App(ctk.CTk):
         self.upd = {"state": None, "info": None, "progress": 0.0, "error": None}
         updater.cleanup_leftovers()
         self.after(600, self._after_update_start)
+        # Nur fuer automatische Tests: einmal die Sprache wechseln und neu starten
+        marker = os.environ.get("SNIPLOAD_TEST_RESTART")
+        if marker and not os.path.exists(marker):
+            open(marker, "w").close()
+            self.cfg["language"] = os.environ.get("SNIPLOAD_TEST_LANG", "ja")
+            self.after(4000, self.restart_app)
         self.after(4000, lambda: self.check_update(silent=True))
         self._tick()
 
@@ -99,9 +107,9 @@ class App(ctk.CTk):
     def _on_close(self):
         active = [j for j in self.queue.jobs if j.active]
         if active:
-            if not dialog(self, "Snipload beenden?",
-                          f"Es laufen noch {len(active)} Download(s). Beim Beenden werden sie abgebrochen.",
-                          "Beenden", "Weiterladen", kind="warn", danger=True):
+            if not dialog(self, _("Quit Snipload?"),
+                          _("{count} download(s) are still running. Quitting will cancel them.").format(count=len(active)),
+                          _("Quit"), _("Keep downloading"), kind="warn", danger=True):
                 return
             for j in active:
                 j.cancel()
@@ -134,12 +142,12 @@ class App(ctk.CTk):
         tf = ctk.CTkFrame(logo, fg_color="transparent")
         tf.pack(side="left")
         label(tf, APP, 19, T.TEXT, "bold", kind="display").pack(anchor="w")
-        label(tf, f"Version {updater.current_version()}", 11, T.TEXT_3).pack(anchor="w")
+        label(tf, _("Version {version}").format(version=updater.current_version()), 11, T.TEXT_3).pack(anchor="w")
 
         nav = ctk.CTkFrame(sb, fg_color="transparent")
         nav.grid(row=1, column=0, sticky="new", padx=12)
         nav.grid_columnconfigure(0, weight=1)
-        label(nav, "MENÜ", 10, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", padx=12, pady=(0, 6))
+        label(nav, _("MENU"), 10, T.TEXT_3, "bold").grid(row=0, column=0, sticky="w", padx=12, pady=(0, 6))
         self.nav_btns = {}
         for i, (key, text, ic) in enumerate(NAV, start=1):
             b = ctk.CTkButton(nav, text=text, anchor="w", height=42, corner_radius=T.RADIUS_SM, fg_color="transparent",
@@ -163,7 +171,7 @@ class App(ctk.CTk):
         foot.grid_columnconfigure(1, weight=1)
         self.tool_dot = ctk.CTkFrame(foot, width=10, height=10, corner_radius=5, fg_color=T.TEXT_3)
         self.tool_dot.grid(row=0, column=0, rowspan=2, padx=(14, 10), pady=12)
-        self.tool_l1 = label(foot, "Prüfe Werkzeuge …", 12, T.TEXT, "bold", anchor="w")
+        self.tool_l1 = label(foot, _("Checking tools …"), 12, T.TEXT, "bold", anchor="w")
         self.tool_l1.grid(row=0, column=1, sticky="sw", pady=(10, 0))
         self.tool_l2 = label(foot, "", 11, T.TEXT_3, anchor="w")
         self.tool_l2.grid(row=1, column=1, sticky="nw", pady=(0, 10))
@@ -207,7 +215,7 @@ class App(ctk.CTk):
         self.bind_all("<Control-V>", paste, add="+")
         self.bind_all("<Control-Return>", lambda e: (self.pages["download"].download()
                                                      if self.page == "download" else None))
-        for i, (key, _, _) in enumerate(NAV, start=1):
+        for i, (key, _x, _x) in enumerate(NAV, start=1):
             self.bind_all(f"<Control-Key-{i}>", lambda e, k=key: self.show_page(k))
 
     # ================================================================ Hilfen fuer die Seiten
@@ -239,7 +247,7 @@ class App(ctk.CTk):
         if h.get("end") is not None:
             dp.end_f.set(h["end"])
         self.clip_seen = h.get("url")
-        self.toast("Link und Zeiten aus dem Verlauf übernommen.", "info", 2800)
+        self.toast(_("Link and times taken from your history."), "info", 2800)
 
     # ================================================================ Werkzeuge
     def check_tools(self):
@@ -256,39 +264,43 @@ class App(ctk.CTk):
         self._render_tool_status()
         self.pages["settings"].refresh_tools()
         age = tools.version_age_days(st.get("ytdlp") or "")
-        if st.get("ytdlp") and age is not None and age > 45 and not self.cfg.get("_upd_hint_shown") == st["ytdlp"]:
-            self.cfg["_upd_hint_shown"] = st["ytdlp"]
-            self.save()
-            self.toast(f"Deine yt-dlp-Version ist {age} Tage alt. Ein Update verhindert Download-Fehler.", "warn",
-                       9000, action=self.update_ytdlp, action_text="Aktualisieren")
+        # YouTube aendert staendig etwas - alte yt-dlp-Versionen fuehren zu "HTTP 403". Darum haelt Snipload
+        # yt-dlp selbst aktuell: ab 7 Tagen Alter still im Hintergrund (hoechstens einmal pro Tag).
+        if st.get("ytdlp") and age is not None and age > 7 and not self._auto_ytdlp_tried:
+            last = self.cfg.get("_ytdlp_auto_at") or 0
+            if time.time() - last > 20 * 3600 and not any(j.status == Job.RUNNING for j in self.queue.jobs):
+                self._auto_ytdlp_tried = True
+                self.cfg["_ytdlp_auto_at"] = time.time()
+                self.save()
+                self.update_ytdlp(silent=True)
 
     def _render_tool_status(self):
         st = self.tool_state
         if st.get("checking"):
             self.tool_dot.configure(fg_color=T.TEXT_3)
-            self.tool_l1.configure(text="Prüfe Werkzeuge …")
+            self.tool_l1.configure(text=_("Checking tools …"))
             self.tool_l2.configure(text="")
             return
         if st.get("busy"):
             self.tool_dot.configure(fg_color=T.WARN)
             self.tool_l1.configure(text=st["busy"])
-            self.tool_l2.configure(text="Einen Moment bitte")
+            self.tool_l2.configure(text=_("One moment please"))
             return
         y, f = st.get("ytdlp"), st.get("ffmpeg")
         if not y or not f:
             missing = [n for n, v in (("yt-dlp", y), ("ffmpeg", f)) if not v]
             self.tool_dot.configure(fg_color=T.DANGER)
-            self.tool_l1.configure(text=" & ".join(missing) + (" fehlen" if len(missing) > 1 else " fehlt"))
-            self.tool_l2.configure(text="Hier klicken zum Installieren")
+            self.tool_l1.configure(text=_("{names} missing").format(names=" & ".join(missing)))
+            self.tool_l2.configure(text=_("Click here to install"))
             return
         age = tools.version_age_days(y)
         if age is not None and age > 30:
             self.tool_dot.configure(fg_color=T.WARN)
-            self.tool_l1.configure(text="Update empfohlen")
+            self.tool_l1.configure(text=_("Update recommended"))
             self.tool_l2.configure(text=f"yt-dlp {y}")
         else:
             self.tool_dot.configure(fg_color=T.SUCCESS)
-            self.tool_l1.configure(text="Bereit")
+            self.tool_l1.configure(text=_("Ready"))
             self.tool_l2.configure(text=f"yt-dlp {y}")
 
     def ensure_tools(self):
@@ -305,60 +317,70 @@ class App(ctk.CTk):
             missing = [n for n in ("yt-dlp", "ffmpeg") if not tools.find_tool(n)]
         if not missing or self.tool_state.get("busy"):
             return
-        names = " und ".join(missing)
-        if not tools.winget_available():
-            dialog(self, f"{names} fehlt", "Installiere es in PowerShell mit:\n\n" +
-                   "\n".join(f"winget install {tools.WINGET_IDS[m]}" for m in missing) +
-                   "\n\nDanach Snipload neu starten.", "OK", None, kind="warn")
-            return
-        if dialog(self, f"{names} installieren?",
-                  f"Snipload braucht {names}. Soll ich es jetzt automatisch installieren? Das dauert 1–2 Minuten.",
-                  "Installieren", "Später", kind="download"):
+        names = " & ".join(missing)
+        if dialog(self, _("Install {names}?").format(names=names),
+                  _("Snipload needs {names}. Install it automatically now? This takes 1–2 minutes.").format(names=names),
+                  _("Install"), _("Later"), kind="download"):
             self.install(missing)
 
     def install(self, names):
-        self.tool_state = {"busy": f"Installiere {' & '.join(names)} …"}
+        self.tool_state = {"busy": _("Installing {names} …").format(names=' & '.join(names))}
         self._render_tool_status()
         self.pages["settings"].refresh_tools()
 
+        def prog(name, frac):
+            text = _("Downloading {names} … {value:.0f} %").format(names=name, value=frac * 100)
+            self.post(lambda: self._install_progress(text))
+
         def work():
-            failed = tools.install(names)
+            failed = tools.install(names, prog)
             self.post(lambda: self._installed(failed))
         threading.Thread(target=work, daemon=True).start()
 
+    def _install_progress(self, text):
+        if self.tool_state.get("busy"):
+            self.tool_state["busy"] = text
+            self._render_tool_status()
+
     def _installed(self, failed):
         if failed:
-            self.toast("Installation hat nicht geklappt: " + ", ".join(failed) + ". Versuch es in PowerShell mit "
-                       "winget install " + " ".join(tools.WINGET_IDS[f] for f in failed), "error", 10000)
+            self.toast(_("Couldn't download {names}. Check your internet connection and try again.").format(
+                names=" & ".join(failed)), "error", 10000)
         else:
-            self.toast("Fertig installiert – du kannst loslegen.", "success")
+            self.toast(_("Installed – you're ready to go."), "success")
             dp = self.pages["download"]
             if dp.get_url() and not dp.info:
                 dp._force_load()
         self.check_tools()
 
-    def update_ytdlp(self):
+    def update_ytdlp(self, silent=False):
         if self.tool_state.get("busy"):
             return
         if any(j.status == Job.RUNNING for j in self.queue.jobs):
-            self.toast("Warte, bis der laufende Download fertig ist.", "warn")
+            if not silent:
+                self.toast(_("Wait until the running download has finished."), "warn")
             return
-        self.tool_state = {"busy": "Aktualisiere yt-dlp …"}
+        self.tool_state = {"busy": _("Updating yt-dlp …")}
         self._render_tool_status()
         self.pages["settings"].refresh_tools()
 
         def work():
             before, after = tools.update_ytdlp()
-            self.post(lambda: self._updated(before, after))
+            self.post(lambda: self._updated(before, after, silent))
         threading.Thread(target=work, daemon=True).start()
 
-    def _updated(self, before, after):
+    def _updated(self, before, after, silent=False):
+        if silent:
+            if after and before and after != before:
+                self.toast(_("yt-dlp updated: {before} → {after}").format(before=before, after=after), "success")
+            self.check_tools()
+            return
         if after and before and after != before:
-            self.toast(f"yt-dlp aktualisiert: {before} → {after}", "success")
+            self.toast(_("yt-dlp updated: {before} → {after}").format(before=before, after=after), "success")
         elif after:
-            self.toast(f"yt-dlp ist schon die neueste Version ({after}).", "info")
+            self.toast(_("yt-dlp is already the latest version ({after}).").format(after=after), "info")
         else:
-            self.toast("Update hat nicht geklappt. In PowerShell: winget upgrade yt-dlp.yt-dlp", "error", 8000)
+            self.toast(_("The yt-dlp update didn't work. Check your internet connection."), "error", 8000)
         self.check_tools()
 
     # ================================================================ Snipload-Updates
@@ -389,14 +411,14 @@ class App(ctk.CTk):
         elif info is None:
             self.upd.update(state="current", info=None)
             if not silent:
-                self.toast(f"Snipload ist aktuell (Version {updater.current_version()}).", "success")
+                self.toast(_("Snipload is up to date (version {version}).").format(version=updater.current_version()), "success")
         else:
             self.upd.update(state="available", info=info)
             if updater.can_self_update() and self.cfg.get("auto_update", True):
                 self.download_update()
             else:
-                self.toast(f"Neue Version {info['version']} verfügbar.", "info", 8000,
-                           action=self.update_clicked, action_text="Ansehen", key="update")
+                self.toast(_("New version {version} available.").format(version=info['version']), "info", 8000,
+                           action=self.update_clicked, action_text=_("View"), key="update")
         self._render_update()
 
     def download_update(self):
@@ -432,8 +454,8 @@ class App(ctk.CTk):
                 self._auto_restart(first=True)
             else:
                 v = self.upd["info"]["version"]
-                self.toast(f"Version {v} ist bereit.", "success", 10000, action=self.restart_for_update,
-                           action_text="Neu starten", key="update")
+                self.toast(_("Version {v} is ready.").format(v=v), "success", 10000, action=self.restart_for_update,
+                           action_text=_("Restart"), key="update")
         self._render_update()
 
     # ---- automatischer Neustart: 5 s Countdown, wartet auf laufende Downloads, "Spaeter" moeglich
@@ -444,16 +466,16 @@ class App(ctk.CTk):
         if any(j.active for j in self.queue.jobs):
             if not self.upd.get("waiting"):
                 self.upd["waiting"] = True
-                self.toast(f"Update {v} ist bereit – Snipload startet neu, sobald deine Downloads fertig sind.",
-                           "info", 7000, action=self._postpone_restart, action_text="Später", key="update")
+                self.toast(_("Update {v} is ready – Snipload will restart as soon as your downloads are finished.").format(v=v),
+                           "info", 7000, action=self._postpone_restart, action_text=_("Later"), key="update")
             self._render_update()
             self.after(2000, self._auto_restart)
             return
         self.upd["waiting"] = False
         if first or self.upd.get("countdown") is None:
             self.upd["countdown"] = 5
-            self.toast(f"Snipload aktualisiert sich auf {v} und öffnet sich gleich wieder.", "success", 6000,
-                       action=self._postpone_restart, action_text="Später", key="update")
+            self.toast(_("Snipload is updating to {v} and will reopen in a moment.").format(v=v), "success", 6000,
+                       action=self._postpone_restart, action_text=_("Later"), key="update")
         n = self.upd["countdown"]
         self._render_update()
         if n <= 0:
@@ -478,15 +500,14 @@ class App(ctk.CTk):
                 pass
         if v:
             if v == updater.current_version():
-                self.toast(f"Snipload wurde auf Version {v} aktualisiert.", "success", 6000, key="update")
+                self.toast(_("Snipload has been updated to version {v}.").format(v=v), "success", 6000, key="update")
             else:
-                self.toast(f"Das Update auf {v} hat nicht geklappt – Snipload läuft weiter mit "
-                           f"{updater.current_version()}.", "warn", 8000, key="update")
+                self.toast(_("The update to {v} didn't work – Snipload keeps running with {version}.").format(v=v, version=updater.current_version()), "warn", 8000, key="update")
 
     def _postpone_restart(self):
         self.upd["postponed"] = True
         self.upd["countdown"] = None
-        self.toast("Okay – das Update wird beim nächsten Schließen eingespielt.", "info", 4000, key="update")
+        self.toast(_("Okay – the update will be installed the next time you close Snipload."), "info", 4000, key="update")
         self._render_update()
 
     def update_clicked(self):
@@ -495,14 +516,13 @@ class App(ctk.CTk):
         if st == "ready":
             self.restart_for_update()
         elif st == "available":
-            notes = f"\n\nNeu: {info['notes']}" if info.get("notes") else ""
-            if dialog(self, f"Snipload {info.get('version')} ist da",
-                      f"Du hast Version {updater.current_version()}.{notes}\n\nDas Update wird im Hintergrund "
-                      "geladen – du kannst normal weiterarbeiten.", "Jetzt aktualisieren", "Später",
+            notes = _("\n\nWhat's new: {notes}").format(notes=info['notes']) if info.get("notes") else ""
+            if dialog(self, _("Snipload {get} is here").format(get=info.get('version')),
+                      _("You have version {version}.{notes}\n\nThe update downloads in the background – you can keep working.").format(version=updater.current_version(), notes=notes), _("Update now"), _("Later"),
                       kind="download"):
                 self.download_update()
         elif st == "downloading":
-            self.toast("Das Update wird gerade geladen …", "info", 2500, key="update")
+            self.toast(_("The update is downloading …"), "info", 2500, key="update")
         else:
             self.check_update(silent=False)
 
@@ -510,16 +530,16 @@ class App(ctk.CTk):
         if self.upd.get("state") != "ready":
             return
         active = [j for j in self.queue.jobs if j.active]
-        if active and confirm and not dialog(self, "Jetzt neu starten?",
-                                 f"Es laufen noch {len(active)} Download(s). Sie werden abgebrochen.",
-                                 "Neu starten", "Abbrechen", kind="warn", danger=True):
+        if active and confirm and not dialog(self, _("Restart now?"),
+                                 _("{count} download(s) are still running. They will be cancelled.").format(count=len(active)),
+                                 _("Restart"), _("Cancel"), kind="warn", danger=True):
             return
         for j in active:
             j.cancel()
         try:
             updater.install(self.upd["path"], restart=True)
         except Exception as ex:
-            self.toast(f"Update konnte nicht gestartet werden: {ex}", "error", 8000)
+            self.toast(_("Couldn't start the update: {ex}").format(ex=ex), "error", 8000)
             return
         if getattr(self, "_geom", None) and self.state() == "normal":
             self.cfg["geometry"] = self._geom
@@ -532,6 +552,61 @@ class App(ctk.CTk):
         self.save()
         self.destroy()
 
+    def restart_app(self):
+        """Snipload neu starten (z. B. nach einem Sprachwechsel) - Link, Zeiten und Seite bleiben erhalten."""
+        import subprocess
+        import sys
+        active = [j for j in self.queue.jobs if j.active]
+        if active and not dialog(self, _("Restart now?"),
+                                 _("{count} download(s) are still running. They will be cancelled.").format(count=len(active)),
+                                 _("Restart"), _("Cancel"), kind="warn", danger=True):
+            return
+        for j in active:
+            j.cancel()
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable]
+        else:
+            cmd = [sys.executable, os.path.abspath(sys.argv[0])]
+        flags = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == "nt" else 0
+        if getattr(self, "_geom", None) and self.state() == "normal":
+            self.cfg["geometry"] = self._geom
+        try:
+            self.cfg["_resume"] = dict(self.pages["download"].session_state(), page=self.page)
+        except Exception:
+            pass
+        self.save()
+        try:
+            # saubere Umgebung: sonst haelt sich die neue exe fuer einen Teil der alten (PyInstaller)
+            subprocess.Popen(cmd, creationflags=flags, close_fds=True, env=clean_env(),
+                             cwd=os.path.dirname(cmd[-1]) or None,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as ex:
+            self.toast(_("Couldn't restart: {ex}").format(ex=ex), "error", 8000)
+            return
+        self.destroy()
+
+    def _fit_button_text(self, b, max_size=13, min_size=10):
+        """Schrift verkleinern, bis der Text in den Knopf passt (lange Sprachen wie Russisch/Franzoesisch);
+        reicht das nicht, wird der Text gekuerzt."""
+        import tkinter.font as tkfont
+        try:
+            scale = ctk.ScalingTracker.get_widget_scaling(b) or 1.0
+            avail = (236 - 2 * 14 - 26 - 18) * scale    # Seitenleiste - Rand - Symbol - Innenabstand
+            full = b.cget("text")
+            for size in range(max_size, min_size - 1, -1):
+                f = tkfont.Font(family=T.family(), size=-int(round(size * scale)), weight="bold")
+                if f.measure(full) <= avail:
+                    b.configure(font=T.F(size, "bold"))
+                    return
+            b.configure(font=T.F(min_size, "bold"))
+            f = tkfont.Font(family=T.family(), size=-int(round(min_size * scale)), weight="bold")
+            txt = full
+            while txt and f.measure(txt + "…") > avail:
+                txt = txt[:-1]
+            b.configure(text=txt.rstrip() + "…")
+        except Exception:
+            pass
+
     def _render_update(self):
         st = self.upd.get("state")
         info = self.upd.get("info") or {}
@@ -539,24 +614,25 @@ class App(ctk.CTk):
         if st in ("available", "downloading", "ready"):
             b.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 0))
             if st == "available":
-                b.configure(text=f"Update {info.get('version')} verfügbar", state="normal",
+                b.configure(text=_("Update {get} available").format(get=info.get('version')), state="normal",
                             image=icon("download", 16, "#ffffff"))
                 bar.grid_forget()
             elif st == "downloading":
-                b.configure(text=f"Lade Update … {self.upd.get('progress', 0) * 100:.0f} %",
+                b.configure(text=_("Downloading update … {value:.0f} %").format(value=self.upd.get('progress', 0) * 100),
                             image=icon("download", 16, "#ffffff"))
                 bar.grid(row=4, column=0, sticky="ew", padx=20, pady=(6, 0))
                 bar.set(self.upd.get("progress", 0))
             else:
                 cd = self.upd.get("countdown")
                 if self.upd.get("waiting"):
-                    txt = "Neustart nach den Downloads"
+                    txt = _("Restart after downloads")
                 elif cd is not None and not self.upd.get("postponed"):
-                    txt = f"Neustart in {max(0, cd)} s – jetzt?"
+                    txt = _("Restarting in {max} s – now?").format(max=max(0, cd))
                 else:
-                    txt = f"Neu starten für {info.get('version')}"
+                    txt = _("Restart for {get}").format(get=info.get('version'))
                 b.configure(text=txt, state="normal", image=icon("refresh", 16, "#ffffff"))
                 bar.grid_forget()
+            self._fit_button_text(b)
         else:
             b.grid_forget()
             bar.grid_forget()
@@ -580,6 +656,11 @@ class App(ctk.CTk):
     def _on_job(self, job):
         if job is None:
             return
+        if job.hint == "slow" and not getattr(job, "_hint_shown", False) and not self.cfg.get("_slow_hint_off"):
+            job._hint_shown = True
+            self.toast(_("This clip is cut frame-accurately, so the video is re-encoded – on this PC that's slow. "
+                         "Turn off “Frame-accurate cuts” in the settings for much faster downloads."), "info", 12000,
+                       action=lambda: self.show_page("settings"), action_text=_("Settings"), key="slow")
         if job.status in (Job.DONE, Job.FAILED) and job.id not in self._handled:
             self._handled.add(job.id)
             if job.status == Job.DONE:
@@ -592,11 +673,11 @@ class App(ctk.CTk):
                     show_in_folder(job.file)
                 if not (self.page == "download" and self.pages["download"].job is job):
                     t = job.title if len(job.title) <= 44 else job.title[:42].rstrip() + "…"
-                    self.toast(f"Fertig: {t}", "success", 5000, action=lambda: open_path(job.file),
-                               action_text="Abspielen")
+                    self.toast(_("Done: {t}").format(t=t), "success", 5000, action=lambda: open_path(job.file),
+                               action_text=_("Play"))
             else:
                 if not (self.page == "download" and self.pages["download"].job is job):
-                    self.toast(f"Fehlgeschlagen: {job.error}", "error", 7000)
+                    self.toast(_("Failed: {error}").format(error=job.error), "error", 7000)
 
     def _add_history(self, job):
         entry = {
@@ -604,7 +685,7 @@ class App(ctk.CTk):
             "file": job.file or "", "url": job.url, "id": (job.info or {}).get("id"),
             "start": 0 if job.whole else job.start, "end": None if job.whole else job.end,
             "kind": job.kind, "format": job.format_label(), "size": job.size, "thumb": job.thumb,
-            "date": datetime.now().strftime("%d.%m.%Y %H:%M"),
+            "date": datetime.now().strftime("%d.%m.%Y %H:%M"), "ts": time.time(),
         }
         hist = [h for h in self.cfg.get("history", []) if h.get("file") != entry["file"] or not entry["file"]]
         self.cfg["history"] = [entry] + hist[:199]
@@ -613,7 +694,7 @@ class App(ctk.CTk):
     # ================================================================ Takt
     def _tick(self):
         try:
-            for _ in range(200):
+            for _x in range(200):
                 kind, payload = self.events.get_nowait()
                 if kind == "call":
                     try:
@@ -655,5 +736,6 @@ def main():
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Snipload.App")
         except Exception:
             pass
+    win_no_throttle()   # im Hintergrund nicht vom Windows-Effizienzmodus bremsen lassen
     app = App()
     app.mainloop()

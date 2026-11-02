@@ -128,6 +128,11 @@ def _draw(name, p):
         for x in (6.5, 10, 13.5, 17):
             p.circle(x, 10, 0.9, fill=True)
         L((7.5, 14.5), (16.5, 14.5))
+    elif name == "globe":
+        import math
+        p.circle(12, 12, 9); L((3, 12), (21, 12))
+        L(*[(12 + 4 * math.sin(t / 24 * math.pi * 2), 12 - 9 * math.cos(t / 24 * math.pi * 2)) for t in range(0, 13)])
+        L(*[(12 - 4 * math.sin(t / 24 * math.pi * 2), 12 - 9 * math.cos(t / 24 * math.pi * 2)) for t in range(0, 13)])
     else:
         p.circle(12, 12, 8)
 

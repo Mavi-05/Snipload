@@ -25,6 +25,14 @@ def selftest(out_path):
     except Exception as ex:  # noqa
         lines.append(f"FEHLER Oberflaeche: {ex!r}")
         ok = False
+    try:
+        from snipload import i18n, locales
+        counts = {c: len(locales.load(c)) for c in i18n.CODES if c != "en"}
+        lines.append("Sprachen: " + ", ".join(f"{c} {n}" for c, n in counts.items()))
+        ok &= all(n >= len(locales.KEYS) * 0.95 for n in counts.values())
+    except Exception as ex:  # noqa
+        lines.append(f"FEHLER Sprachen: {ex!r}")
+        ok = False
     lines.append("SELFTEST OK" if ok else "SELFTEST FEHLGESCHLAGEN")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")

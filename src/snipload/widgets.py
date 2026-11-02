@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageTk
 from . import theme as T
 from .icons import icon
 from .util import fmt_field, fmt_short, parse_time
+from .i18n import _
 
 
 # ================================================================ Knoepfe & Karten
@@ -191,7 +192,7 @@ class Timeline(tk.Canvas):
         self.hover_x = None
         self.enabled = True
         self.loading = False
-        self.hint = "Füg oben einen Link ein – dann legst du hier Start und Ende fest."
+        self.hint = _("Paste a link above – then set the start and end here.")
         self.storyboard = None
         self._base = None
         self._base_key = None
@@ -324,7 +325,7 @@ class Timeline(tk.Canvas):
             self._round_rect(x0, y0, x1, y1, S(8), fill=T.SURFACE_2, outline=T.BORDER)
             for x in range(int(x0) + S(16), int(x1) - S(10), S(30)):
                 self.create_line(x, y0 + S(14), x, y1 - S(14), fill="#202029", width=S(2))
-            txt = "Video wird geladen …" if self.loading else self.hint
+            txt = _("Loading video …") if self.loading else self.hint
             self.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=txt, fill=T.TEXT_3, font=self._font(13))
             return
         xa, xb = self._x(self.a), self._x(self.b)
@@ -542,7 +543,7 @@ class Toaster:
             def run():
                 self._close(f)
                 action()
-            button(f, action_text or "Öffnen", run, "secondary", size="sm").grid(row=0, column=col_i, padx=(12, 0))
+            button(f, action_text or _("Open"), run, "secondary", size="sm").grid(row=0, column=col_i, padx=(12, 0))
             col_i += 1
         button(f, "", lambda: self._close(f), "ghost", icon_name="x", size="sm", width=28).grid(
             row=0, column=col_i, padx=(6, 8))
@@ -611,7 +612,7 @@ class Shimmer:
 
 
 # ================================================================ Dialog
-def dialog(root, title, text, ok_text="OK", cancel_text="Abbrechen", kind="info", danger=False):
+def dialog(root, title, text, ok_text="OK", cancel_text=_("Cancel"), kind="info", danger=False):
     """Eigener, zum Design passender Dialog. Gibt True (OK) oder False zurueck."""
     win = ctk.CTkToplevel(root, fg_color=T.SURFACE)
     win.title(title)
