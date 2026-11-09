@@ -268,10 +268,10 @@ class FacecamEditor(ctk.CTkToplevel):
             c.create_text(gx0 + 8, gy1 - 10, text=_("Gameplay"), anchor="sw", fill="#ffffff",
                           font=(T.family(), -int(11 * self.scale), "bold"))
         w = max(2, int(3 * self.scale))
-        c.create_rectangle(x0, y0, x1, y1, outline=T.ACCENT, width=w)
+        c.create_rectangle(x0, y0, x1, y1, outline=T.CAM_FRAME, width=w)
         r = int(7 * self.scale)
         for hx, hy in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
-            c.create_oval(hx - r, hy - r, hx + r, hy + r, fill="#ffffff", outline=T.ACCENT, width=w)
+            c.create_oval(hx - r, hy - r, hx + r, hy + r, fill="#ffffff", outline=T.CAM_FRAME, width=w)
         c.create_text(x0 + 8, y0 + 8, text=_("Facecam"), anchor="nw", fill="#ffffff",
                       font=(T.family(), -int(11 * self.scale), "bold"))
         for k, v in self.px_vars.items():
