@@ -301,12 +301,20 @@ class InfoError(Exception):
     pass
 
 
+HW_ALLOWED = True         # Grafikkarte zum Kodieren nutzen (Einstellung)
+COOKIES_BROWSER = None    # z. B. "firefox": Anmeldung aus dem Browser fuer Mitglieder-/Alters-Videos
+
+
+def cookie_args():
+    return ["--cookies-from-browser", COOKIES_BROWSER] if COOKIES_BROWSER else []
+
+
 def fetch_info(url):
     """Holt alle Infos (inkl. Storyboard) per yt-dlp -J."""
     base = ytdlp_cmd()
     if not base:
         raise InfoError(_("yt-dlp is missing"))
-    cmd = base + ["-J", "--no-playlist", "--no-warnings", "--encoding", "utf-8", url]
+    cmd = base + cookie_args() + ["-J", "--no-playlist", "--no-warnings", "--encoding", "utf-8", url]
     try:
         r = run(cmd, 120)
     except subprocess.TimeoutExpired:
