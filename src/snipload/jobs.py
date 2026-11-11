@@ -228,7 +228,9 @@ class Runner:
         gif = sp.get("gif") if j.kind == "video" else None
         up = sp.get("upscale") or {}
         ai = j.kind == "video" and up.get("target") and up.get("engine") in ("esrgan", "topaz")
-        post = finish.needs_finish(j) or bool(gif)
+        ch0 = sp.get("chat") or {}
+        chat_extra = bool(j.kind == "video" and ch0.get("messages") and (ch0.get("burn") or ch0.get("alpha")))
+        post = finish.needs_finish(j) or bool(gif) or chat_extra
         final = os.path.join(j.folder, f"{j.name}.{'gif' if gif else j.ext}")
         if j.aspect == "facecam_raw":
             final = os.path.join(j.folder, f"{j.name} [Facecam].{'gif' if gif else 'mp4'}")
@@ -330,6 +332,11 @@ class Runner:
                         return self.fail(self.error_text() or _("Converting to Shorts format didn't work."))
                 else:
                     out = src
+                    if not gif:      # nichts neu zu rechnen (z. B. nur transparenter Chat): Datei nur umbenennen
+                        if os.path.exists(final):
+                            os.remove(final)
+                        os.replace(src, final)
+                        out = final
                 # 4) GIF
                 if gif:
                     ok = self.run_ffmpeg(finish.gif_cmd(ffmpeg, out, final + ".part.gif", int(gif.get("fps") or 15),
