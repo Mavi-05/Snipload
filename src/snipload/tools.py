@@ -301,12 +301,20 @@ class InfoError(Exception):
     pass
 
 
+HW_ALLOWED = True         # Grafikkarte zum Kodieren nutzen (Einstellung)
+COOKIES_BROWSER = None    # z. B. "firefox": Anmeldung aus dem Browser fuer Mitglieder-/Alters-Videos
+
+
+def cookie_args():
+    return ["--cookies-from-browser", COOKIES_BROWSER] if COOKIES_BROWSER else []
+
+
 def fetch_info(url):
     """Holt alle Infos (inkl. Storyboard) per yt-dlp -J."""
     base = ytdlp_cmd()
     if not base:
         raise InfoError(_("yt-dlp is missing"))
-    cmd = base + ["-J", "--no-playlist", "--no-warnings", "--encoding", "utf-8", url]
+    cmd = base + cookie_args() + ["-J", "--no-playlist", "--no-warnings", "--encoding", "utf-8", url]
     try:
         r = run(cmd, 120)
     except subprocess.TimeoutExpired:
@@ -387,15 +395,33 @@ def pick_preview_storyboard(info, strip_fmt):
     return best
 
 
+def is_video_format(f):
+    """Hat dieses Format ein Bild? Twitch-Clips nennen keinen Codec - dort zaehlt die Bildgroesse."""
+    if not f or not f.get("url") or str(f.get("format_id", "")).startswith("sb"):
+        return False
+    v = f.get("vcodec")
+    if v == "none":
+        return False
+    return bool(v or f.get("height") or f.get("width"))
+
+
+def has_audio(f):
+    """Hat dieses Format Ton? Ohne Codec-Angaben (Twitch-Clips) ist es eine normale Datei mit Bild und Ton."""
+    a = f.get("acodec")
+    if a == "none":
+        return False
+    return bool(a) or f.get("vcodec") is None
+
+
 def pick_frame_format(info, max_h=1080):
     """Video-Format fuer Standbilder: direkte https-Datei, am liebsten H.264.
 
     max_h=1080: fuer die Vorschau (720p ideal). max_h=None: hoechste Aufloesung (Facecam 1:1)."""
     cands = []
     for f in info.get("formats") or []:
-        if f.get("vcodec") in (None, "none") or not f.get("url"):
+        if not is_video_format(f):
             continue
-        proto = f.get("protocol") or ""
+        proto = f.get("protocol") or ("https" if str(f.get("url", "")).startswith("http") else "")
         if proto not in ("https", "http", "m3u8", "m3u8_native"):  # m3u8: Twitch-VODs
             continue
         h = f.get("height") or 0

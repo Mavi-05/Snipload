@@ -39,6 +39,14 @@ def resource_path(*parts):
     return os.path.join(here, "..", "..", "assets", *parts)
 
 
+def web_path(*parts):
+    """Dateien der Oberflaeche (web/) - im Quellcode-Paket oder in der fertigen exe."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        return os.path.join(base, "web", *parts)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", *parts)
+
+
 def config_dir():
     base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
     d = os.path.join(base, APP)
@@ -76,6 +84,23 @@ DEFAULTS = {
     "name_template": "{title} [{start} - {end}]",
     "history": [],
     "geometry": None,
+    # ab Version 4 (neue Oberflaeche)
+    "favorites": [],
+    "recent": [],
+    "cookies_browser": None,
+    "custom_editors": [],
+    "premiere_mode": "bin",      # bin | timeline | sequence
+    "open_in": None,             # Schnittprogramm, in das nach dem Export geschickt wird
+    "window": None,
+    "fc_sizes": None,
+    "caption_style": None,
+    "caption_model": "balanced",
+    "caption_lang": "auto",
+    "chat_style": None,
+    "upscale_engine": "lanczos",
+    "hw_encode": True,
+    "platform": "youtube",
+    "onboarded": False,
 }
 
 

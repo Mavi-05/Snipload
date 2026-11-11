@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import threading
+import tempfile
 import time
 
 from . import tools
@@ -29,7 +30,7 @@ _ids = itertools.count(1)
 class Job:
     WAITING, RUNNING, DONE, FAILED, CANCELLED = "waiting", "running", "done", "failed", "cancelled"
 
-    def __init__(self, url, info, start, end, kind, quality, audio_fmt, aspect, exact, folder, name):
+    def __init__(self, url, info, start, end, kind, quality, audio_fmt, aspect, exact, folder, name, spec=None):
         self.id = next(_ids)
         self.url = url
         self.info = info                # gekuerzte Video-Infos (tools.info_summary)
@@ -57,6 +58,8 @@ class Job:
         self.also_full = False          # Nur Facecam: zusaetzlich das normale Video behalten
         self.extra_files = []
         self.hint = None                # z. B. "slow": Hinweis an die App (einmalig)
+        self.spec = spec or {}          # Extras: captions, chat, upscale, speed, fades, eq, size_mb, gif, ...
+        self.sent_to = None             # an welches Schnittprogramm uebergeben
         self._cancel = False
         self._proc = None
 
@@ -83,6 +86,8 @@ class Job:
     def format_label(self):
         if self.kind == "audio":
             return AUDIO_LABELS.get(self.audio_fmt, self.audio_fmt.upper())
+        if (self.spec or {}).get("gif"):
+            return "GIF"
         q = _("Best") if self.quality == "best" else f"{self.quality}p"
         if self.aspect == "facecam_raw" and self.cam_px:
             size = f"{self.cam_px['w']}×{self.cam_px['h']}"
@@ -187,7 +192,7 @@ class Runner:
         self.notify = notify
         self.tail = collections.deque(maxlen=20)
         self.encoder = None      # welcher Video-Encoder beim Schnitt benutzt wird
-        self.no_hw = False       # Grafikkarten-Encoder abgeschaltet (nach einem Fehler)
+        self.no_hw = not tools.HW_ALLOWED   # Grafikkarten-Encoder abgeschaltet (Einstellung oder nach Fehler)
         self.slow_since = None   # seit wann die Verarbeitung deutlich langsamer als Echtzeit ist
 
     def set(self, progress=None, stage=None, detail=None):
@@ -209,7 +214,9 @@ class Runner:
 
     # -------------------------------------------------- Ablauf
     def run(self):
+        from . import finish
         j = self.job
+        sp = j.spec or {}
         j.status = Job.RUNNING
         j.started_at = time.time()
         self.set(0.0, _("Starting…"), "")
@@ -220,42 +227,154 @@ class Runner:
             return self.fail(_("{names} missing. Install it under Settings → Tools.").format(names=" & ".join(missing)))
         os.makedirs(j.folder, exist_ok=True)
 
-        post = j.kind == "video" and j.aspect != "original"
-        final = os.path.join(j.folder, f"{j.name}.{j.ext}")
+        gif = sp.get("gif") if j.kind == "video" else None
+        up = sp.get("upscale") or {}
+        ai = j.kind == "video" and up.get("target") and up.get("engine") in ("esrgan", "topaz")
+        ch0 = sp.get("chat") or {}
+        chat_extra = bool(j.kind == "video" and ch0.get("messages") and (ch0.get("burn") or ch0.get("alpha")))
+        post = finish.needs_finish(j) or bool(gif) or chat_extra
+        final = os.path.join(j.folder, f"{j.name}.{'gif' if gif else j.ext}")
         if j.aspect == "facecam_raw":
-            final = os.path.join(j.folder, f"{j.name} [Facecam].mp4")
+            final = os.path.join(j.folder, f"{j.name} [Facecam].{'gif' if gif else 'mp4'}")
         dl_name = f"{j.name}.snipload-tmp" if post else j.name
-        self.span = 0.55 if post else 0.95
+        self.span = 0.5 if post else 0.95
         ok, dl_file = self.download_robust(base, ffmpeg, dl_name)
         if j._cancel:
             self._cleanup(dl_file if post else None)
             return self.cancelled()
         if not ok:
             return self.fail(self.error_text())
-        if post:
-            ok = self.reframe(ffmpeg, dl_file, final)
-            if not ok and not j._cancel and self.encoder not in (None, "libx264"):
-                tools.hw_broken = True     # Grafikkarten-Encoder hat versagt -> mit der CPU nochmal
-                self.no_hw = True
-                ok = self.reframe(ffmpeg, dl_file, final)
-            if ok and j.also_full:
-                # normales Video zusaetzlich behalten
-                full = os.path.join(j.folder, f"{j.name}.mp4" if j.aspect == "facecam_raw"
-                                    else f"{j.name} [Original].mp4")
-                try:
-                    if os.path.exists(full):
-                        os.remove(full)
-                    os.replace(dl_file, full)
-                    j.extra_files.append(full)
-                except OSError:
-                    pass
-            self._cleanup(dl_file)
-            if j._cancel:
-                self._cleanup(final)
-                return self.cancelled()
-            if not ok:
-                return self.fail(self.error_text() or _("Converting to Shorts format didn't work."))
-            dl_file = final
+        temps = []
+        try:
+            if post:
+                src = dl_file
+                info = finish.probe(src)
+                # 1) KI-Hochskalieren (vor dem Layout, damit der genutzte Ausschnitt scharf wird)
+                if ai:
+                    factor = finish.scale_factor_for_ai(j, info["w"] or 1920, info["h"] or 1080)
+                    if factor > 1:
+                        from . import upscale
+                        label = _("AI upscaling ×{n}…").format(n=factor)
+                        self.set(self.span, label, "")
+                        up_file = os.path.join(j.folder, f"{j.name}.snipload-up.mp4")
+                        temps.append(up_file)
+                        cb = lambda f: self.set(self.span + 0.25 * f, label, "")
+                        try:
+                            if up.get("engine") == "topaz":
+                                upscale.topaz_video(src, up_file, factor, info, cb, lambda: j._cancel)
+                            else:
+                                upscale.esrgan_video(src, up_file, factor, info, up.get("model") or "video", cb,
+                                                     lambda: j._cancel, ffmpeg)
+                            # Koordinaten der Facecam beziehen sich auf die Originalgroesse
+                            src = up_file
+                            info = finish.probe(src)
+                        except Exception as ex:
+                            if j._cancel:
+                                return self.cancelled()
+                            j.hint = "upscale_failed"
+                            self.tail.append(f"upscale: {ex}")
+                    self.span = min(0.8, self.span + 0.25)
+                if j._cancel:
+                    return self.cancelled()
+                # 2) Ausgabegroesse ermitteln, Untertitel und Chat vorbereiten
+                lay, W, H = finish.layout_filter(j, info["w"] or 1920, info["h"] or 1080)
+                speed = float(sp.get("speed") or 1.0)
+                ass_path = fonts_dir = None
+                cap = sp.get("captions") or {}
+                if j.kind == "video" and cap.get("words") and cap.get("burn", True):
+                    from . import captions
+                    ass_path = os.path.join(j.folder, f"{j.name}.snipload-cap.ass")
+                    temps.append(ass_path)
+                    with open(ass_path, "w", encoding="utf-8") as f:
+                        f.write(captions.build_ass(cap["words"], cap.get("style") or {}, W, H, speed=speed))
+                    fonts_dir = captions.fonts_dir_for(cap.get("style") or {}, tempfile.mkdtemp(prefix="snipload_fonts_"))
+                chat_video = chat_box = None
+                ch = sp.get("chat") or {}
+                if j.kind == "video" and ch.get("messages") and (ch.get("burn") or ch.get("alpha")):
+                    from . import chat as chatmod
+                    self.set(self.span, _("Rendering chat…"), "")
+                    dur = j.duration or info.get("duration") or 0
+                    style = dict(ch.get("style") or {})
+                    if ch.get("burn"):
+                        # Chat-Feld relativ zur Endgroesse
+                        box = ch.get("box") or {"x": 0.03, "y": 0.45, "w": 0.4, "h": 0.4}
+                        bw = max(80, int(W * box["w"]) // 2 * 2)
+                        bh = max(80, int(H * box["h"]) // 2 * 2)
+                        scale = float(style.get("scale_px") or 0) or (bw / 420.0)
+                        st = dict(style, width=int(bw / scale), height=int(bh / scale))
+                        chat_video = os.path.join(j.folder, f"{j.name}.snipload-chat.mov")
+                        temps.append(chat_video)
+                        chatmod.render(ch["messages"], chat_video, dur, st, fmt="png", start=j.start,
+                                       badge_urls=ch.get("badge_urls"), ffmpeg=ffmpeg, cancel=lambda: j._cancel)
+                        chat_box = (int(W * box["x"]), int(H * box["y"]), bw, bh)
+                    if ch.get("alpha"):
+                        fmt = ch["alpha"]
+                        ext = {"mov": "mov", "webm": "webm", "green": "mp4"}.get(fmt, "mov")
+                        alpha_out = os.path.join(j.folder, f"{j.name} [Chat].{ext}")
+                        chatmod.render(ch["messages"], alpha_out, dur, dict(ch.get("alpha_style") or style), fmt=fmt, start=j.start,
+                                       badge_urls=ch.get("badge_urls"), ffmpeg=ffmpeg, cancel=lambda: j._cancel)
+                        j.extra_files.append(alpha_out)
+                if j._cancel:
+                    return self.cancelled()
+                # 3) Abschluss-Durchgang
+                need_video_pass = finish.needs_finish(j) or chat_video or ass_path
+                out = final
+                if gif:
+                    out = os.path.join(j.folder, f"{j.name}.snipload-gif.mp4")
+                    temps.append(out)
+                if need_video_pass:
+                    ok = self.finish_pass(ffmpeg, src, out, info, ass_path, fonts_dir, chat_video, chat_box)
+                    if not ok and not j._cancel and self.encoder not in (None, "libx264"):
+                        tools.hw_broken = True
+                        self.no_hw = True
+                        ok = self.finish_pass(ffmpeg, src, out, info, ass_path, fonts_dir, chat_video, chat_box)
+                    if j._cancel:
+                        return self.cancelled()
+                    if not ok:
+                        return self.fail(self.error_text() or _("Converting to Shorts format didn't work."))
+                else:
+                    out = src
+                    if not gif:      # nichts neu zu rechnen (z. B. nur transparenter Chat): Datei nur umbenennen
+                        if os.path.exists(final):
+                            os.remove(final)
+                        os.replace(src, final)
+                        out = final
+                # 4) GIF
+                if gif:
+                    ok = self.run_ffmpeg(finish.gif_cmd(ffmpeg, out, final + ".part.gif", int(gif.get("fps") or 15),
+                                                        int(gif.get("width") or 480)),
+                                         _("Creating GIF…"), (info.get("duration") or j.duration or 0) / max(0.25, speed))
+                    if not ok:
+                        return self.fail(self.error_text())
+                    os.replace(final + ".part.gif", final)
+                # 5) Ganzes Video zusaetzlich behalten (Facecam-Modi)
+                if j.also_full:
+                    full = os.path.join(j.folder, f"{j.name}.mp4" if j.aspect == "facecam_raw"
+                                        else f"{j.name} [Original].mp4")
+                    try:
+                        if os.path.exists(full):
+                            os.remove(full)
+                        os.replace(dl_file, full)
+                        j.extra_files.append(full)
+                    except OSError:
+                        pass
+                dl_file = final
+            # 6) Untertitel zusaetzlich als .srt
+            cap = sp.get("captions") or {}
+            if cap.get("words") and cap.get("srt"):
+                from . import captions
+                srt_path = os.path.splitext(final)[0] + ".srt"
+                with open(srt_path, "w", encoding="utf-8") as f:
+                    f.write(captions.srt(cap["words"], cap.get("style"), float(sp.get("speed") or 1.0)))
+                j.extra_files.append(srt_path)
+        finally:
+            for t in temps + ([dl_file] if post and dl_file and dl_file.endswith(("snipload-tmp.mp4", "snipload-tmp.m4a",
+                                                                                   "snipload-tmp.webm")) else []):
+                self._cleanup(t)
+            if post:
+                for f in os.listdir(j.folder):
+                    if f.startswith(j.name + ".snipload-") and os.path.isfile(os.path.join(j.folder, f)):
+                        self._cleanup(os.path.join(j.folder, f))
         j.file = dl_file if dl_file and os.path.exists(dl_file) else self.guess_result()
         try:
             j.size = os.path.getsize(j.file) if j.file else 0
@@ -265,6 +384,70 @@ class Runner:
         secs = time.time() - j.started_at
         files = _("{value} files · ").format(value=1 + len(j.extra_files)) if j.extra_files else ""
         self.set(1.0, _("Done"), _("{files}in {secs:.0f} s").format(files=files, secs=secs))
+
+    def finish_pass(self, ffmpeg, src, dst, info, ass_path, fonts_dir, chat_video, chat_box):
+        from . import finish
+        j = self.job
+        sp = j.spec or {}
+        if j.aspect == "facecam_raw" and not sp.get("upscale"):
+            venc = ["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p"]
+        else:
+            self.encoder, venc = tools.video_encoder(allow_hw=not self.no_hw)
+        speed = max(0.25, float(sp.get("speed") or 1.0))
+        dur = (info.get("duration") or j.duration or 0) / speed
+        size_mb = float(sp.get("size_mb") or 0)
+        bitrate = finish.size_bitrate(size_mb, dur, info.get("audio") and not sp.get("mute")) if size_mb else None
+        label = _("Cutting out the facecam…") if j.aspect == "facecam_raw" else _("Rendering…")
+        tmp = dst + ".part" + os.path.splitext(dst)[1]
+        for attempt in range(3):
+            cmd, _d = finish.build(j, ffmpeg, src, tmp, info, venc, ass_path, fonts_dir, chat_video, chat_box, bitrate)
+            ok = self.run_ffmpeg(cmd, label, dur)
+            if not ok:
+                self._cleanup(tmp)
+                return False
+            if bitrate and os.path.getsize(tmp) > size_mb * 1024 * 1024 and attempt < 2:
+                bitrate = int(bitrate * 0.85 * size_mb * 1024 * 1024 / os.path.getsize(tmp))
+                continue
+            break
+        try:
+            if os.path.exists(dst):
+                os.remove(dst)
+            os.replace(tmp, dst)
+            return True
+        except OSError as ex:
+            self.tail.append(f"ERROR: {ex}")
+            return False
+
+    def run_ffmpeg(self, cmd, label, dur):
+        """ffmpeg mit Fortschritt (-progress pipe:1) zwischen self.span und 0.97."""
+        j = self.job
+        self.set(self.span + 0.01, label, "")
+        t0 = time.time()
+        try:
+            j._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                       stdin=subprocess.DEVNULL, creationflags=NO_WINDOW, env=clean_env())
+            win_no_throttle(getattr(j._proc, '_handle', None))
+        except OSError as ex:
+            self.tail.append(f"ERROR: {ex}")
+            return False
+        for line in _lines(j._proc.stdout):
+            self.tail.append(line)
+            if line.startswith(("out_time_us=", "out_time_ms=")) and dur:
+                try:
+                    sec = int(line.split("=", 1)[1]) / 1e6
+                except ValueError:
+                    continue
+                frac = max(0.0, min(1.0, sec / dur))
+                el = time.time() - t0
+                eta = ""
+                if frac > 0.05 and el > 1.5:
+                    rest = el * (1 - frac) / frac
+                    eta = (_("about {int} s left").format(int=int(rest)) if rest < 90
+                           else _("about {value} min left").format(value=int(rest // 60) + 1))
+                self.set(self.span + 0.01 + frac * (0.97 - self.span), label, eta)
+        rc = j._proc.wait()
+        j._proc = None
+        return rc == 0 and not j._cancel
 
     def cancelled(self):
         self.job.status = Job.CANCELLED
@@ -305,7 +488,7 @@ class Runner:
     def build_cmd(self, base, ffmpeg, out_name, sections=True):
         j = self.job
         outtmpl = out_name.replace("%", "%%") + ".%(ext)s"
-        cmd = base + [
+        cmd = base + tools.cookie_args() + [
             "--no-playlist", "--newline", "--no-colors", "--encoding", "utf-8", "--windows-filenames",
             "--no-quiet", "--progress", "--force-overwrites", "--no-mtime",
             "--progress-template", "download:[PCT] %(progress._percent_str)s",
@@ -504,81 +687,6 @@ class Runner:
             self.set(None, _("Reading video data…"))
 
     # -------------------------------------------------- ffmpeg: Shorts 9:16
-    def reframe(self, ffmpeg, src, dst):
-        j = self.job
-        if j.aspect == "facecam_raw" and j.cam_px:
-            # 1:1 - exakte Pixel, keine Skalierung. Falls die geladene Datei eine andere Aufloesung hat als
-            # die Analyse-Bilder, werden die Koordinaten umgerechnet.
-            from . import tools as _tools
-            size = _tools.probe_size(src) or (j.cam_px["ref_w"], j.cam_px["ref_h"])
-            sx, sy = size[0] / j.cam_px["ref_w"], size[1] / j.cam_px["ref_h"]
-            cx, cy = int(round(j.cam_px["x"] * sx)), int(round(j.cam_px["y"] * sy))
-            cw, ch = int(round(j.cam_px["w"] * sx)) // 2 * 2, int(round(j.cam_px["h"] * sy)) // 2 * 2
-            cw, ch = min(cw, size[0] - cx) // 2 * 2, min(ch, size[1] - cy) // 2 * 2
-            filt = ["-vf", f"crop={cw}:{ch}:{cx}:{cy},setsar=1,format=yuv420p"]
-            self.out_size = (cw, ch)
-        elif j.aspect == "facecam" and j.layout and j.layout.get("cam"):
-            from . import facecam
-            inf = j.info or {}
-            aspect = (inf.get("width") / inf.get("height")) if inf.get("width") and inf.get("height") else 16 / 9
-            filt = ["-filter_complex", facecam.ffmpeg_filter(j.layout, aspect), "-map", "[v]", "-map", "0:a?"]
-        elif j.aspect == "blur916":
-            vf = ("split[a][b];"
-                  "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
-                  "boxblur=luma_radius=40:luma_power=2,eq=brightness=-0.06:saturation=1.15[bg];"
-                  "[b]scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2[fg];"
-                  "[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p[v]")
-            filt = ["-filter_complex", vf, "-map", "[v]", "-map", "0:a?"]
-        else:
-            vf = ("scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,"
-                  "crop=1080:1920,setsar=1,format=yuv420p")
-            filt = ["-vf", vf]
-        tmp_dst = dst + ".part.mp4"
-        if j.aspect == "facecam_raw":   # 1:1-Facecam: klein, also ruhig so nah am Original wie moeglich
-            venc = ["-c:v", "libx264", "-preset", "medium", "-crf", "16"]
-        else:                           # 1080x1920: Grafikkarte oder libx264 "veryfast"
-            self.encoder, venc = tools.video_encoder(allow_hw=not self.no_hw)
-        cmd = [ffmpeg, "-hide_banner", "-y", "-i", src, *filt, *venc, "-c:a", "aac", "-b:a", "192k",
-               "-movflags", "+faststart", "-progress", "pipe:1", "-nostats", tmp_dst]
-        label = _("Cutting out the facecam…") if j.aspect == "facecam_raw" else _("Converting to Shorts format…")
-        self.set(self.span + 0.02, label, "")
-        dur = j.duration or 0
-        t0 = time.time()
-        try:
-            j._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                       stdin=subprocess.DEVNULL, creationflags=NO_WINDOW, env=clean_env())
-            win_no_throttle(getattr(j._proc, '_handle', None))
-        except OSError as ex:
-            self.tail.append(f"ERROR: {ex}")
-            return False
-        for line in _lines(j._proc.stdout):
-            self.tail.append(line)
-            if line.startswith("out_time_us=") or line.startswith("out_time_ms="):
-                try:
-                    sec = int(line.split("=", 1)[1]) / 1e6
-                except ValueError:
-                    continue
-                if dur > 0:
-                    frac = max(0.0, min(1.0, sec / dur))
-                    el = time.time() - t0
-                    eta = ""
-                    if frac > 0.05 and el > 1.5:
-                        rest = el * (1 - frac) / frac
-                        eta = _("about {int} s left").format(int=int(rest)) if rest < 90 else _("about {value} min left").format(value=int(rest // 60) + 1)
-                    self.set(self.span + 0.02 + frac * (0.97 - self.span), label, eta)
-        rc = j._proc.wait()
-        j._proc = None
-        if rc == 0 and os.path.exists(tmp_dst):
-            try:
-                if os.path.exists(dst):
-                    os.remove(dst)
-                os.replace(tmp_dst, dst)
-                return True
-            except OSError as ex:
-                self.tail.append(f"ERROR: {ex}")
-        self._cleanup(tmp_dst)
-        return False
-
 
 def _lines(stream):
     """Liest Zeilen, die mit \\n ODER \\r enden (ffmpeg schreibt Fortschritt mit \\r)."""

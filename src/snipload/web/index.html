@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Snipload</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="/app/img/logo.png">
+<script>window.__errs = []; addEventListener('error', function (e) {
+  var el = e.target; if (el && el !== window && !/^(SCRIPT|LINK)$/.test(el.tagName || '')) return;   // Bilder/Videos duerfen fehlen
+  __errs.push(String(e.message || e.type) + ' ' + (e.filename || (el && (el.src || el.href)) || '')); }, true);
+addEventListener('unhandledrejection', function (e) { __errs.push('rejection: ' + String(e.reason && e.reason.message || e.reason)); });</script>
+<link rel="stylesheet" href="/app/style.css">
+<link rel="stylesheet" href="/app/home.css">
+<link rel="stylesheet" href="/app/editor.css">
+<link rel="stylesheet" href="/app/pages.css">
+</head>
+<body>
+
+<!-- Das Zeichen aus dem Logo: Schnittrahmen + Play-Dreieck. Wird an mehreren Stellen wiederverwendet. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-play" x1="0.08" y1="0.05" x2="0.95" y2="0.85">
+      <stop offset="0" stop-color="#d996fb"/><stop offset="0.5" stop-color="#8c52fb"/><stop offset="1" stop-color="#4764fc"/>
+    </linearGradient>
+    <linearGradient id="g-pearl" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3f4fd"/><stop offset="1" stop-color="#b6bcdd"/>
+    </linearGradient>
+    <symbol id="mark" viewBox="0 0 1024 1024">
+      <path class="mark-a" d="M196 290H700Q770 290 770 360V804" fill="none" stroke="url(#g-pearl)" stroke-width="74" stroke-linecap="round"/>
+      <path class="mark-b" d="M298 206V655Q298 725 368 725H854" fill="none" stroke="url(#g-pearl)" stroke-width="74" stroke-linecap="round"/>
+      <path class="mark-c" d="M455 412V608L626 510Z" fill="url(#g-play)" stroke="url(#g-play)" stroke-width="58" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="boot" class="boot">
+  <svg class="boot-mark" viewBox="0 0 1024 1024" aria-hidden="true">
+    <path class="mark-a" pathLength="1" d="M196 290H700Q770 290 770 360V804" fill="none" stroke="url(#g-pearl)" stroke-width="74" stroke-linecap="round"/>
+    <path class="mark-b" pathLength="1" d="M298 206V655Q298 725 368 725H854" fill="none" stroke="url(#g-pearl)" stroke-width="74" stroke-linecap="round"/>
+    <path class="mark-c" d="M455 412V608L626 510Z" fill="url(#g-play)" stroke="url(#g-play)" stroke-width="58" stroke-linejoin="round"/>
+  </svg>
+</div>
+
+<div id="app" class="shell">
+  <nav class="rail" id="rail" aria-label="Snipload"></nav>
+  <div class="main">
+    <main class="pages" id="pages">
+      <section class="page" id="page-home"></section>
+      <section class="page page-flush" id="page-editor"></section>
+      <section class="page" id="page-exports"></section>
+      <section class="page" id="page-library"></section>
+      <section class="page" id="page-settings"></section>
+    </main>
+  </div>
+</div>
+
+<div id="layer"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="tip" class="tip" role="tooltip"></div>
+
+<script type="module" src="/app/js/app.js"></script>
+</body>
+</html>
