@@ -11,6 +11,8 @@ text = f"""VSVersionInfo(
     StringFileInfo([StringTable('040704B0', [
       StringStruct('FileDescription', 'Snipload'),
       StringStruct('ProductName', 'Snipload'),
+      StringStruct('CompanyName', 'Mavi-05'),
+      StringStruct('LegalCopyright', 'Copyright (c) 2026 Mavi-05. All rights reserved.'),
       StringStruct('FileVersion', '{version}'),
       StringStruct('ProductVersion', '{version}'),
       StringStruct('OriginalFilename', 'Snipload.exe')])]),

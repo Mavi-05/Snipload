@@ -153,6 +153,19 @@ Emote-Diensten 7TV, BetterTTV und FrankerFaceZ (nur wenn du einen Twitch-Chat l�
 
 > Bitte lade nur Inhalte herunter, die du verwenden darfst.
 
-## Für Entwickler
+## Lizenz
 
-Siehe den Abschnitt [For developers](README.md#for-developers) in der englischen Fassung.
+**Snipload darfst du kostenlos benutzen, aber es ist kein Open Source.** © 2026 Mavi-05, alle Rechte vorbehalten.
+
+- **Erlaubt:** Snipload von dieser Seite herunterladen und kostenlos benutzen, privat und für deine Arbeit.
+  Den Quellcode lesen. Snipload weiterempfehlen und auf diese Seite verlinken.
+- **Ohne schriftliche Erlaubnis des Autors nicht erlaubt:** Snipload oder Teile davon kopieren, es woanders
+  hochladen, veränderte oder umbenannte Fassungen veröffentlichen, es als eigenes Programm ausgeben oder
+  promoten und es verkaufen.
+
+Der Code ist öffentlich, damit du prüfen kannst, was das Programm tut. Die vollständigen Bedingungen stehen
+in [LICENSE](LICENSE).
+
+## So ist es gebaut
+
+Siehe den Abschnitt [How it's built](README.md#how-its-built) in der englischen Fassung.

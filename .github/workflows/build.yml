@@ -10,6 +10,7 @@ on:
       - "assets/**"
       - "tools/**"
       - "requirements.txt"
+      - "LICENSE"
       - ".github/workflows/**"
   workflow_dispatch:
 
@@ -53,6 +54,7 @@ jobs:
           --add-data "assets/haarcascade_frontalface_alt2.xml;."
           --add-data "assets/haarcascade_profileface.xml;."
           --add-data "src/snipload/web;web"
+          --add-data "LICENSE;web"
           --version-file tools/version_info.txt
           --paths src
           src/main.py
@@ -166,6 +168,8 @@ jobs:
             Already using Snipload? It updates itself automatically.
 
             On the first start Windows may show "Windows protected your PC" – click *More info* → *Run anyway*.
+
+            Snipload is free to use, but it may not be copied, uploaded elsewhere or passed off as your own – see [LICENSE](https://github.com/Mavi-05/Snipload/blob/main/LICENSE).
 
             What's new: ${{ github.event.head_commit.message }}
           files: |

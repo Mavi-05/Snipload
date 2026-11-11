@@ -179,6 +179,9 @@ class Server:
                     full = os.path.join(WEB_DIR, rel)
                     if not os.path.abspath(full).startswith(os.path.abspath(WEB_DIR)):
                         return self._send(403, b"forbidden", "text/plain")
+                    if rel == "LICENSE" and not os.path.isfile(full):
+                        # in der exe liegt die Lizenz in web/, aus dem Quellcode gestartet im Hauptordner
+                        full = os.path.join(WEB_DIR, os.pardir, os.pardir, os.pardir, "LICENSE")
                     return self._file(full, cache=rel.startswith("fonts"))
                 if not self._authorized(qs):
                     return self._send(403, b"forbidden", "text/plain")

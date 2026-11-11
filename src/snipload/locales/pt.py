@@ -521,4 +521,5 @@ T = {
     518: "Alternar entre Buscar, Editor, Exportações e Biblioteca",
     519: "Mostrar estes atalhos",
     520: "A prévia deste vídeo não tem som. A exportação tem som.",
+    521: "O Snipload é gratuito. Não é permitido copiá-lo, enviá-lo para outro lugar nem apresentá-lo como seu.",
 }

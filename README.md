@@ -150,7 +150,19 @@ build server, to Hugging Face (the speech model, only if you use AI captions) an
 
 > Please only download content you're allowed to use.
 
-## For developers
+## License
+
+**Snipload is free to use, but it is not open source.** © 2026 Mavi-05, all rights reserved.
+
+- **Allowed:** downloading Snipload from this page and using it for free, privately and for your work.
+  Reading the source code. Recommending Snipload with a link to this page.
+- **Not allowed without the author's written permission:** copying Snipload or parts of it, uploading it
+  somewhere else, publishing changed or renamed versions, passing it off or promoting it as your own, and
+  selling it.
+
+The code is public so that you can check what the program does. The full terms are in [LICENSE](LICENSE).
+
+## How it's built
 
 Snipload is written in Python. The interface is a web page (plain HTML, CSS and JavaScript, no framework)
 shown in a native window through [pywebview](https://pywebview.flowrl.com) and Edge WebView2, and talks to
@@ -176,4 +188,4 @@ To try the interface in a browser while developing: `python -m snipload.webapp -
 a local address. The version number lives in `src/snipload/__init__.py`; the build number is appended
 automatically.
 
-Third-party licenses are listed in the app under **Settings → Licenses**.
+The licenses of the software Snipload uses are listed in the app under **Settings → Licenses**.

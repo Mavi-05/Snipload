@@ -521,4 +521,5 @@ T = {
     518: "Zwischen Finden, Editor, Exporten und Bibliothek wechseln",
     519: "Diese Tastenkürzel anzeigen",
     520: "Die Vorschau dieses Videos hat keinen Ton. Der Export hat Ton.",
+    521: "Snipload darfst du kostenlos benutzen. Kopieren, woanders hochladen oder als dein eigenes Programm ausgeben ist nicht erlaubt.",
 }

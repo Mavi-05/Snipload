@@ -1,0 +1,92 @@
+Snipload License
+
+Copyright (c) 2026 Mavi-05 (https://github.com/Mavi-05)
+All rights reserved.
+
+Snipload is free to use. It is not open source. The source code is public so that anyone can
+check what the program does - not so that it can be copied, re-released or reused.
+
+"Snipload" below means the program, its source code, its interface and design, its texts and
+translations, its name and its logo.
+
+
+1. What you may do
+
+   a) Download Snipload from the official page, https://github.com/Mavi-05/Snipload, and use
+      it free of charge, privately and for your work. The clips you make with it are not
+      covered by this license; what you may do with them depends on the rights to the videos
+      you clip.
+   b) Read the source code.
+   c) Recommend Snipload and link to the official page, as long as it stays clear that it is
+      Snipload by Mavi-05.
+
+
+2. What you may not do without written permission from the author
+
+   a) Copy Snipload or parts of it into another program, project, website or product.
+   b) Pass Snipload on or offer it for download anywhere other than the official page. This
+      includes re-uploads, mirrors, installers, download portals and bundles with other
+      software.
+   c) Change Snipload and publish or pass on the changed version. This includes renamed,
+      re-skinned, translated and repackaged versions.
+   d) Present, advertise or promote Snipload, a copy of it or a changed version of it as your
+      own work, under your own name or under a different name.
+   e) Sell, rent or license Snipload, charge for access to it, or earn money in any other way
+      by offering the program itself.
+   f) Use the name "Snipload" or the logo for another program, website, channel or product,
+      or in a way that suggests it comes from the author or is approved by the author.
+   g) Remove or change this license, the name of the author or any copyright notice.
+
+
+3. GitHub
+
+   The repository is hosted on GitHub. As GitHub's Terms of Service require for public
+   repositories, you may view it and fork it on GitHub. That is the only copy this license
+   allows beyond section 1, and a fork gives you no right to do anything listed in section 2.
+
+
+4. Software from others
+
+   Snipload contains and downloads software, fonts and icons made by others (among them
+   yt-dlp, ffmpeg, whisper.cpp, Real-ESRGAN, hls.js, Lucide and several fonts). They stay
+   under their own licenses, which are listed in src/snipload/web/LICENSES.txt and in the app
+   under Settings > Licenses. Nothing in this license limits the rights those licenses give
+   you for those parts.
+
+
+5. End of permission
+
+   If you do anything listed in section 2, your permission under section 1 ends immediately.
+   The author may have copies taken down and may take the steps the law provides.
+
+
+6. No warranty
+
+   SNIPLOAD IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT. TO THE EXTENT THE LAW ALLOWS, THE AUTHOR IS NOT LIABLE FOR ANY CLAIM,
+   DAMAGES OR OTHER LIABILITY ARISING FROM SNIPLOAD OR FROM ITS USE.
+
+
+To ask for permission, open an issue at https://github.com/Mavi-05/Snipload/issues
+
+
+------------------------------------------------------------------------------------------
+Kurzfassung auf Deutsch (es gilt der englische Text oben)
+
+Snipload darfst du kostenlos herunterladen und benutzen, privat und für deine Arbeit - aber
+nur von der offiziellen Seite https://github.com/Mavi-05/Snipload. Den Quellcode darfst du
+lesen. Snipload weiterempfehlen und auf die offizielle Seite verlinken ist erlaubt, solange
+klar bleibt, dass es Snipload von Mavi-05 ist.
+
+Ohne schriftliche Erlaubnis des Autors ist nicht erlaubt:
+
+  - Snipload oder Teile davon (Code, Oberfläche, Design, Texte, Name, Logo) zu kopieren oder
+    in eigenen Programmen, Projekten oder Produkten zu verwenden
+  - Snipload woanders hochzuladen oder zum Download anzubieten
+  - Snipload zu verändern und die veränderte Fassung weiterzugeben oder zu veröffentlichen,
+    auch unter anderem Namen
+  - Snipload, eine Kopie oder eine veränderte Fassung als eigenes Programm auszugeben, zu
+    bewerben oder zu promoten
+  - Snipload zu verkaufen oder auf andere Weise mit dem Programm selbst Geld zu verdienen
+  - diese Lizenz, den Namen des Autors oder Copyright-Hinweise zu entfernen

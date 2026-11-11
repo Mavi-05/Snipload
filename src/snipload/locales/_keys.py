@@ -521,4 +521,5 @@ KEYS = [
     "Switch between Find, Editor, Exports and Library",  # 518
     "Show these shortcuts",  # 519
     "The preview of this video has no sound. The export has sound.",  # 520
+    "Snipload is free to use. Copying it, uploading it somewhere else or passing it off as your own is not allowed.",  # 521
 ]

@@ -521,4 +521,5 @@ T = {
     518: "Passer de Trouver à Éditeur, Exports et Bibliothèque",
     519: "Afficher ces raccourcis",
     520: "L’aperçu de cette vidéo n’a pas de son. L’export a du son.",
+    521: "Snipload est gratuit. Il est interdit de le copier, de le publier ailleurs ou de le présenter comme le vôtre.",
 }

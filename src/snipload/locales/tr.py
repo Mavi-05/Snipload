@@ -521,4 +521,5 @@ T = {
     518: "Bul, Düzenleyici, Dışa aktarımlar ve Kitaplık arasında geç",
     519: "Bu kısayolları göster",
     520: "Bu videonun önizlemesinde ses yok. Dışa aktarımda ses vardır.",
+    521: "Snipload'u ücretsiz kullanabilirsin. Kopyalamak, başka bir yere yüklemek veya kendi programın gibi göstermek yasaktır.",
 }

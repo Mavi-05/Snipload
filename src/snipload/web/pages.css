@@ -40,3 +40,4 @@
 .set-ico { width: 32px; height: 32px; flex: none; border-radius: 9px; background: var(--ink-3); display: grid; place-items: center; color: var(--text-2); }
 .set-name { font-weight: 600; }
 .licenses { white-space: pre-wrap; font: inherit; font-size: 12.5px; line-height: 1.55; margin: 0; }
+.about-note { margin: 14px 0 0; max-width: 560px; color: var(--text-3); font-size: 12.5px; line-height: 1.55; }

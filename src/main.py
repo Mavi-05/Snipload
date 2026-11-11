@@ -38,6 +38,9 @@ def selftest(out_path):
         with urllib.request.urlopen(base + "/app/js/app.js", timeout=10) as r:
             js_type = r.headers.get("Content-Type", "")
             js_len = len(r.read())
+        with urllib.request.urlopen(base + "/app/LICENSE", timeout=10) as r:
+            if b"Snipload License" not in r.read():
+                raise RuntimeError("Lizenz fehlt in der exe")
         req = urllib.request.Request(base + "/api/boot", data=b"{}", method="POST",
                                      headers={"X-Snip-Key": srv.token, "Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=20) as r:

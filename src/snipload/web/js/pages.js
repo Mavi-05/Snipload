@@ -270,13 +270,18 @@ function paintSettings() {
     h('div.hstack.wrap', { style: { marginTop: '10px' } },
       Btn(t('Keyboard shortcuts'), { sm: true, kind: 'ghost', icon: 'keyboard', onclick: () => import('./app.js').then(m => m.showShortcuts()) }),
       Btn('GitHub', { sm: true, kind: 'ghost', icon: 'external-link', onclick: () => api('open_url', { url: 'https://github.com/Mavi-05/Snipload' }) }),
-      Btn(t('Licenses'), { sm: true, kind: 'ghost', icon: 'file-text', onclick: showLicenses }))));
+      Btn(t('Licenses'), { sm: true, kind: 'ghost', icon: 'file-text', onclick: showLicenses })),
+    h('p.about-note', OWNER + '. ' + t('Snipload is free to use. Copying it, uploading it somewhere else or passing it off as your own is not allowed.'))));
 
   clear(setRoot, h('div.settings', out));
   setRoot.scrollTop = y;
 }
+const OWNER = '© 2026 Mavi-05';
 async function showLicenses() {
-  let text = '';
-  try { text = await (await fetch('/app/LICENSES.txt')).text(); } catch (_) { text = ''; }
-  modal({ title: t('Licenses'), cls: 'mid', body: h('pre.selectable.licenses', text + '\n\nyt-dlp (Unlicense), ffmpeg (LGPL/GPL), whisper.cpp (MIT), Real-ESRGAN (BSD-3-Clause), Geist, Inter, Montserrat, Poppins, Bebas Neue, Anton, Bangers, Luckiest Guy, Archivo Black, Kanit (SIL Open Font License).') });
+  const get = async p => { try { const r = await fetch(p); return r.ok ? await r.text() : ''; } catch (_) { return ''; } };
+  const [own, third] = await Promise.all([get('/app/LICENSE'), get('/app/LICENSES.txt')]);
+  // Zuerst die Lizenz von Snipload selbst, darunter die der verwendeten Bausteine
+  const mine = own.trim() || 'Snipload\n' + OWNER + '. All rights reserved.\nhttps://github.com/Mavi-05/Snipload/blob/main/LICENSE';
+  modal({ title: t('Licenses'), cls: 'mid', body: h('pre.selectable.licenses', mine + '\n\n\n' + '='.repeat(50) + '\n\n' + third.trim()
+    + '\n\nyt-dlp (Unlicense), ffmpeg (LGPL/GPL), whisper.cpp (MIT), Real-ESRGAN (BSD-3-Clause), Geist, Inter, Montserrat, Poppins, Bebas Neue, Anton, Bangers, Luckiest Guy, Archivo Black, Kanit (SIL Open Font License).') });
 }
