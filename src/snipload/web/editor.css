@@ -27,6 +27,9 @@
 .mon-poster.ok { opacity: 1; }
 .mon-poster.gone { opacity: 0 !important; }
 .mon-shield { position: absolute; inset: 0; }
+/* Twitch prueft, ob sein Player verdeckt ist: dort bleibt die Flaeche frei und ungefiltert */
+.mon-frame[data-player="twitch"] .mon-shield { pointer-events: none; }
+.mon-frame[data-player="twitch"] .mon-host { filter: none; }
 .mon-ov { position: absolute; inset: 0; pointer-events: none; }
 .mon-frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .mon-hit { position: absolute; inset: 0; touch-action: none; }

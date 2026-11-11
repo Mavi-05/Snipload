@@ -1,4 +1,4 @@
 """Snipload - laedt nur den Abschnitt eines Videos, den du brauchst."""
 
 APP = "Snipload"
-VERSION = "3.4"
+VERSION = "4.0"

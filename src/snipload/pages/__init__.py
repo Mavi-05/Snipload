@@ -1,1 +1,0 @@
-"""Die Seiten von Snipload."""

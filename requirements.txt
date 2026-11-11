@@ -1,4 +1,4 @@
-customtkinter==6.0.0
+pywebview==6.2.1
 pillow==13.0.0
 numpy
 opencv-python-headless==4.14.0.94

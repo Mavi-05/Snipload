@@ -86,6 +86,8 @@ class Job:
     def format_label(self):
         if self.kind == "audio":
             return AUDIO_LABELS.get(self.audio_fmt, self.audio_fmt.upper())
+        if (self.spec or {}).get("gif"):
+            return "GIF"
         q = _("Best") if self.quality == "best" else f"{self.quality}p"
         if self.aspect == "facecam_raw" and self.cam_px:
             size = f"{self.cam_px['w']}×{self.cam_px['h']}"
@@ -309,7 +311,7 @@ class Runner:
                         fmt = ch["alpha"]
                         ext = {"mov": "mov", "webm": "webm", "green": "mp4"}.get(fmt, "mov")
                         alpha_out = os.path.join(j.folder, f"{j.name} [Chat].{ext}")
-                        chatmod.render(ch["messages"], alpha_out, dur, style, fmt=fmt, start=j.start,
+                        chatmod.render(ch["messages"], alpha_out, dur, dict(ch.get("alpha_style") or style), fmt=fmt, start=j.start,
                                        badge_urls=ch.get("badge_urls"), ffmpeg=ffmpeg, cancel=lambda: j._cancel)
                         j.extra_files.append(alpha_out)
                 if j._cancel:

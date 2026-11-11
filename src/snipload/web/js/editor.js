@@ -107,16 +107,29 @@ function setup(meta) {
   raf = requestAnimationFrame(tick);
 }
 
-async function startPlayer(start) {
+async function startPlayer(start, skip = []) {
   const meta = E.meta;
   srcWait.classList.add('on');
   let p;
-  try { p = await createPlayer(srcHost, meta, start); } catch (e) { p = null; }
+  try { p = await createPlayer(srcHost, meta, start, skip); } catch (e) { p = null; }
   if (E.meta !== meta) { if (p) p.destroy(); return; }
   srcWait.classList.remove('on');
   if (!p) return;
   E.player = p;
+  srcFrame.dataset.player = p.kind;
   p.onState = playing => { E.playing = playing; paintPlay(); };
+  // Manche Videos lassen sich nicht einbetten: dann nahtlos auf die direkte Wiedergabe wechseln
+  p.onFail = () => {
+    if (E.player !== p || E.meta !== meta) return;
+    const at = E.t;
+    try { p.destroy(); } catch (_) { /* egal */ }
+    clear(srcHost);
+    E.player = null;
+    E.playing = false;
+    paintPlay();
+    if (E.feed) { E.feed.destroy(); E.feed = null; }
+    startPlayer(at, skip.concat([p.kind]));
+  };
   p.setMuted(E.muted);
   if (E.fx.speed !== 1) p.setRate(E.fx.speed);
   setTimeout(() => srcPoster.classList.add('gone'), p.kind === 'youtube' || p.kind === 'twitch' ? 1200 : 0);
@@ -252,7 +265,7 @@ function applyFormat() {
   outHit.className = 'mon-hit' + (E.fmt.aspect === 'facecam' && E.fmt.cam ? ' pan' : E.fmt.aspect === 'crop916' ? ' pan' : '');
   const needCam = (E.fmt.aspect === 'facecam' || E.fmt.aspect === 'facecam_raw') && !E.fmt.cam;
   outNote.classList.toggle('hidden', !needCam);
-  if (needCam) outNote.textContent = t('Find the facecam first, or draw its frame in the picture on the left.');
+  if (needCam) outNote.textContent = t('Find the facecam first, or draw its frame in the picture.');
   paintSrcOverlay();
   fmtRev++;
   lastDraw = '';
@@ -676,7 +689,8 @@ async function exportNow() {
     const ch = E.chat;
     if ((ch.burn || ch.alpha) && ch.messages.length) {
       spec.chat = { messages: ch.messages, badge_urls: ch.badges, style: ch.style, burn: !!ch.burn, box: chatBox(), alpha: ch.alpha || null };
-      if (ch.alpha && !ch.burn) spec.chat.style = Object.assign({}, ch.style, { width: 840, height: 1440, font_size: (Number(ch.style.font_size) || 22) * 2 });
+      // die eigene Chat-Datei doppelt so gross rendern, damit sie auch in 1080p/4K-Projekten scharf ist
+      if (ch.alpha) spec.chat.alpha_style = Object.assign({}, ch.style, { width: 840, height: 1440, font_size: (Number(ch.style.font_size) || 22) * 2 });
     } else if (ch.burn || ch.alpha) {
       ins.show('chat');
       return toast(t('Load the chat first.'), 'warn');

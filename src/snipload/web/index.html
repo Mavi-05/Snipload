@@ -6,6 +6,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="/app/img/logo.png">
+<script>window.__errs = []; addEventListener('error', function (e) {
+  var el = e.target; if (el && el !== window && !/^(SCRIPT|LINK)$/.test(el.tagName || '')) return;   // Bilder/Videos duerfen fehlen
+  __errs.push(String(e.message || e.type) + ' ' + (e.filename || (el && (el.src || el.href)) || '')); }, true);
+addEventListener('unhandledrejection', function (e) { __errs.push('rejection: ' + String(e.reason && e.reason.message || e.reason)); });</script>
 <link rel="stylesheet" href="/app/style.css">
 <link rel="stylesheet" href="/app/home.css">
 <link rel="stylesheet" href="/app/editor.css">

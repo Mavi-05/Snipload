@@ -68,6 +68,7 @@ class Base {
     this.video = null;      // <video>, aus dem die 9:16-Vorschau zeichnen kann
     this.sound = true;
     this.onState = () => {};
+    this.onFail = null;     // wird aufgerufen, wenn die Wiedergabe nachtraeglich scheitert (z. B. Einbetten verboten)
     this._raw = 0;
     this._at = 0;
   }
@@ -115,10 +116,11 @@ class YouTubePlayer extends Base {
         events: {
           onReady: () => { clearTimeout(to); resolve(); },
           onStateChange: e => this._onState(e.data),
-          onError: e => { clearTimeout(to); reject(new Error('yt error ' + e.data)); },
+          onError: e => { clearTimeout(to); reject(new Error('yt error ' + e.data)); if (this.ready && this.onFail) this.onFail(e.data); },
         },
       });
     });
+    this.ready = true;
     try { this.p.getIframe().setAttribute('tabindex', '-1'); } catch (_) { /* egal */ }
     // Einmal stumm anspielen: danach bleibt der Player beim Spulen pausiert und zeigt das Bild.
     this.p.mute();
@@ -166,7 +168,7 @@ class TwitchPlayer extends Base {
     await new Promise((resolve, reject) => {
       const to = setTimeout(() => reject(new Error('twitch ready timeout')), WAIT + 4000);
       this.p = new T(holder, {
-        video: String(this.meta.embed.video), parent: [location.hostname], autoplay: false, muted: false, controls: false,
+        video: String(this.meta.embed.video), parent: [location.hostname], autoplay: false, muted: false,
         time: `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m${s % 60}s`, width: '100%', height: '100%',
       });
       this.p.addEventListener(T.READY, () => { clearTimeout(to); resolve(); });
@@ -251,11 +253,11 @@ class StillsPlayer extends Base {
 }
 
 /** Probiert die Wiedergabearten der Reihe nach durch und liefert die erste, die funktioniert. */
-export async function createPlayer(host, meta, start) {
+export async function createPlayer(host, meta, start, skip = []) {
   const e = meta.embed || {};
   const tries = [];
-  if (e.type === 'youtube' && e.id) tries.push(() => new YouTubePlayer(host, meta));
-  if (e.type === 'twitch' && e.video) tries.push(() => new TwitchPlayer(host, meta));
+  if (e.type === 'youtube' && e.id && !skip.includes('youtube')) tries.push(() => new YouTubePlayer(host, meta));
+  if (e.type === 'twitch' && e.video && !skip.includes('twitch')) tries.push(() => new TwitchPlayer(host, meta));
   if (e.type === 'direct' && e.src) tries.push(() => new VideoPlayer(host, meta, { url: e.src, kind: 'file', audio: true }));
   if (meta.preview_src && !(e.type === 'direct' && e.src === meta.preview_src.url)) tries.push(() => new VideoPlayer(host, meta, meta.preview_src));
   tries.push(() => new StillsPlayer(host, meta));

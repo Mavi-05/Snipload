@@ -24,6 +24,8 @@ function art(id) {
   return s;
 }
 const pct = v => Math.round(v) + ' %';
+/** Im Englischen stehen Woerter mitten im Satz klein, in anderen Sprachen bleiben sie, wie sie sind. */
+const low = s => (S.lang === 'en' ? s.toLowerCase() : s);
 const signed = v => (v > 0 ? '+' : '') + Math.round(v);
 
 export function buildInspector(E, A) {
@@ -186,7 +188,7 @@ export function buildInspector(E, A) {
         webkitTextStroke: p.box ? '0' : `${Math.round(15 * p.outline / 100 * 2 * 10) / 10}px ${p.hl_mode === 'box' ? p.hl_color : p.outline_color}`,
         background: p.box ? 'rgba(0,0,0,.6)' : 'none', padding: p.box ? '2px 5px' : '0',
       } }, PRESET_NAMES[name] || name);
-      return h('button.preset' + (st.preset === name ? '.on' : ''), { type: 'button', tip: t(PRESET_NAMES[name] || name),
+      return h('button.preset' + (st.preset === name ? '.on' : ''), { type: 'button',
         onclick: () => { c.style = Object.assign({}, p); A.changed('caps'); refresh(); } }, sample);
     }))));
     // Schrift
@@ -379,7 +381,7 @@ export function buildInspector(E, A) {
         Row(t('Badges'), Switch(st.badges !== false, v => upd('badges', v))),
         Row(t('Emotes'), Switch(st.emotes !== false, v => upd('emotes', v))),
         Row(t('Colored names'), Switch(st.name_colors !== false, v => upd('name_colors', v))),
-        SliderRow(t('Messages stay for'), { min: 0, max: 60, value: Number(st.max_age) || 0, format: v => (v ? t('{n} s', { n: v }) : t('Always')), onInput: v => upd('max_age', v) })));
+        SliderRow(t('Messages stay for'), { min: 0, max: 60, value: Number(st.max_age) || 0, format: v => (v ? v + ' s' : t('Always')), onInput: v => upd('max_age', v) })));
     }
     out.push(Sec(t('Best moments'),
       tasks.hype ? taskUI('hype') : [
@@ -422,8 +424,8 @@ export function buildInspector(E, A) {
       SliderRow(t('Volume'), { min: -20, max: 20, value: fx.volume_db, format: v => signed(v) + ' dB', reset: 0, onInput: v => upd('volume_db', v) }),
       Row(t('Even out the loudness'), Switch(fx.normalize, v => upd('normalize', v)), { hint: t('The usual level for Shorts, Reels and TikTok') }),
       E.out.kind !== 'audio' ? Row(t('Remove the sound'), Switch(fx.mute, v => upd('mute', v))) : null,
-      SliderRow(t('Fade in'), { min: 0, max: 3, step: 0.1, value: fx.fade_in, format: v => t('{n} s', { n: v.toFixed(1) }), reset: 0, onInput: v => upd('fade_in', v) }),
-      SliderRow(t('Fade out'), { min: 0, max: 3, step: 0.1, value: fx.fade_out, format: v => t('{n} s', { n: v.toFixed(1) }), reset: 0, onInput: v => upd('fade_out', v) })));
+      SliderRow(t('Fade in'), { min: 0, max: 3, step: 0.1, value: fx.fade_in, format: v => v.toFixed(1) + ' s', reset: 0, onInput: v => upd('fade_in', v) }),
+      SliderRow(t('Fade out'), { min: 0, max: 3, step: 0.1, value: fx.fade_out, format: v => v.toFixed(1) + ' s', reset: 0, onInput: v => upd('fade_out', v) })));
     return out;
   }
 
@@ -493,8 +495,8 @@ export function buildInspector(E, A) {
       parts.push(t(FORMAT_SHORT[E.fmt.aspect] || 'Original'));
       if (o.kind === 'gif') parts.push('GIF');
       else parts.push(o.quality === 'best' ? t('best quality') : o.quality + 'p');
-      if (E.cap.on && E.cap.words.length && (E.cap.burn || E.cap.srt)) parts.push(t('captions'));
-      if ((E.chat.burn || E.chat.alpha) && E.chat.messages.length) parts.push(t('chat'));
+      if (E.cap.on && E.cap.words.length && (E.cap.burn || E.cap.srt)) parts.push(low(t('Captions')));
+      if ((E.chat.burn || E.chat.alpha) && E.chat.messages.length) parts.push(low(t('Chat')));
       if (fx.up_target) parts.push(t('upscaled to {p}', { p: fx.up_target === 2160 ? '4K' : fx.up_target + 'p' }));
       if (o.kind === 'video' && o.size_mb) parts.push(t('under {n} MB', { n: o.size_mb }));
     }

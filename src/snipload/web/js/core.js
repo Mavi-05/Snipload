@@ -181,8 +181,8 @@ export function tc(sec) {
 /** Laenge eines Clips: 28.5 s oder 2:05 min */
 export function span(sec) {
   sec = Math.max(0, sec || 0);
-  if (sec < 60) return t('{n} s', { n: sec.toFixed(1) });
-  if (sec < 3600) return t('{n} min', { n: `${Math.floor(sec / 60)}:${pad(Math.round(sec % 60) % 60)}` });
+  if (sec < 60) return sec.toFixed(1) + ' s';
+  if (sec < 3600) return `${Math.floor(sec / 60)}:${pad(Math.floor(sec % 60))} min`;
   return clock(sec);
 }
 /** "1:02:03.5", "3:05", "90", "1m30s", "1h2m" -> Sekunden (oder null) */
@@ -411,7 +411,7 @@ export function ask(o) {
     const m = modal({
       title: o.title, body: o.text ? h('p', o.text) : null, onClose: r => resolve(!!r),
       foot: [Btn(o.cancel || t('Cancel'), { kind: 'ghost', onclick: () => m.close(false) }),
-        Btn(o.ok || t('OK'), { kind: o.danger ? 'danger' : 'primary', onclick: () => m.close(true) })],
+        Btn(o.ok || 'OK', { kind: o.danger ? 'danger' : 'primary', onclick: () => m.close(true) })],
     });
     m.el.querySelector('.modal-foot .btn:last-child').focus();
   });

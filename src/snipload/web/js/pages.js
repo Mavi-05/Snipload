@@ -5,7 +5,7 @@ import { openVideo } from './editor.js';
 // ================================================================== Gemeinsames: Clip an ein Schnittprogramm geben
 function editorMenu(anchor, files, extra = []) {
   const eds = S.editors || [];
-  const items = eds.map(e => ({ label: e.name, icon: 'send', hint: e.direct ? '' : t('via clipboard'), onClick: () => api('send_to_editor', { editor: e.id, files }).catch(err => toast(err.message, 'error')) }));
+  const items = eds.map(e => ({ label: e.name, icon: 'send', hint: e.direct ? '' : t('Via clipboard'), onClick: () => api('send_to_editor', { editor: e.id, files }).catch(err => toast(err.message, 'error')) }));
   if (!items.length) items.push({ label: t('No editing program found'), disabled: true });
   menu(anchor, [{ heading: t('Open in') }, ...items, '-', { label: t('Add a program…'), icon: 'plus', onClick: () => go('settings') }, ...extra], { right: true });
 }
@@ -38,7 +38,7 @@ function jobRow(j) {
   if (j.status === 'waiting') line = t('Waiting for its turn');
   else if (j.status === 'running') line = [j.stage || t('Working…'), j.detail ? h('span.dim', ' ' + j.detail) : null];
   else if (j.status === 'done') {
-    const bits = [j.format, bytes(j.size), (j.files || []).length > 1 ? t('{n} files', { n: j.files.length }) : null].filter(Boolean).join(', ');
+    const bits = [(j.format || '').replace(/ · /g, ', '), bytes(j.size), (j.files || []).length > 1 ? t('{n} files', { n: j.files.length }) : null].filter(Boolean).join(', ');
     const ed = j.sent_to && (S.editors || []).find(e => e.id === j.sent_to);
     line = [bits, ed ? h('span.sent', icon('send'), t('Sent to {name}', { name: ed.name })) : null, j.hint === 'upscale_failed' ? h('span.dim', ' ' + t('AI upscaling didn’t work, the fast method was used instead.')) : null];
     cls = '.done';
@@ -128,7 +128,7 @@ function libCard(it) {
     onclick: () => (it.exists ? libPlayer(it) : libActions(it, card)),
     oncontextmenu: e => { e.preventDefault(); libActions(it, { x: e.clientX, y: e.clientY }); } },
     thumb, h('div.vcard-title', it.title || t('Untitled')),
-    h('div.vcard-meta', [it.format, bytes(it.size), it.ts ? ago(it.ts) : null].filter(Boolean).map(x => h('span', x))));
+    h('div.vcard-meta', [(it.format || '').replace(/ · /g, ', '), bytes(it.size), it.ts ? ago(it.ts) : null].filter(Boolean).map(x => h('span', x))));
   // Beim Ueberfahren laeuft der Clip stumm an
   if (it.exists && it.file_url && it.kind !== 'audio' && !/\.gif$/i.test(it.file || '')) {
     let timer = 0, vid = null;
@@ -149,7 +149,7 @@ function libPlayer(it) {
       : h('video.lib-video', { src: it.file_url, controls: true, autoplay: true, playsInline: true });
   const m = modal({
     title: it.title || '', cls: 'wide',
-    body: [media, h('div.vcard-meta', { style: { marginTop: '10px' } }, [it.channel, it.format, bytes(it.size), it.ts ? ago(it.ts) : null].filter(Boolean).map(x => h('span', x)))],
+    body: [media, h('div.vcard-meta', { style: { marginTop: '10px' } }, [it.channel, (it.format || '').replace(/ · /g, ', '), bytes(it.size), it.ts ? ago(it.ts) : null].filter(Boolean).map(x => h('span', x)))],
     foot: [Btn(t('More'), { kind: 'ghost', after: 'chevron-down', onclick: e => libActions(it, e.currentTarget, () => m.close()) }),
       Btn(t('Show in folder'), { icon: 'folder-open', onclick: () => api('reveal', { path: it.file }).catch(e => toast(e.message, 'error')) }),
       Btn(t('Open in'), { kind: 'primary', after: 'chevron-down', onclick: e => editorMenu(e.currentTarget, [it.file]) })],
@@ -205,6 +205,7 @@ function paintSettings() {
       Btn('', { sm: true, kind: 'ghost', icon: 'folder-open', tip: t('Open the folder'), onclick: () => api('open_file', { path: cfg.folder }).catch(e => toast(e.message, 'error')) })), { stack: true }),
     Row(t('File names'), [tmpl], { stack: true, hint: null }),
     h('div.hint', { style: { margin: '-2px 0 8px' } }, tmplPreview, h('br'), t('You can use {title}, {channel}, {start}, {end}, {date} and {id}.')),
+    Row(t('Play a sound when exports are done'), Switch(cfg.sound !== false, v => setCfg('sound', v))),
     Row(t('Use the graphics card for exports'), Switch(cfg.hw_encode !== false, v => setCfg('hw_encode', v)), { hint: t('Much faster. Turn it off if exports fail or look wrong.') }),
     Row(t('Sign in with your browser'), Select([['', t('Off')], ['chrome', 'Chrome'], ['edge', 'Edge'], ['firefox', 'Firefox'], ['brave', 'Brave'], ['opera', 'Opera'], ['vivaldi', 'Vivaldi']], cfg.cookies_browser || '', v => { cfg.cookies_browser = v || null; api('set_cfg', { key: 'cookies_browser', value: v || null }).catch(() => {}); }),
       { hint: t('For age-restricted and members-only videos. Snipload uses the sign-in of this browser.') })));
@@ -236,7 +237,7 @@ function paintSettings() {
     Object.keys(wh.models || {}).map(k => {
       const m = wh.models[k];
       const ready = wh.engine && m.ready;
-      return Row(labels[k] || k, [h('span.tag.soft', ready ? t('Ready') : t('{mb} MB', { mb: m.mb })),
+      return Row(labels[k] || k, [h('span.tag.soft', ready ? t('Ready') : m.mb + ' MB'),
         ready ? null : Btn(t('Download'), { sm: true, onclick: () => setTask('whisper', 'install_whisper', { model: k }).then(r => { if (r) { S.whisper = r; paintSettings(); } }) })]);
     })));
 
@@ -264,7 +265,7 @@ function paintSettings() {
   const state = { checking: t('Checking…'), available: t('Version {v} is available', { v: u.version }), downloading: t('Downloading version {v}…', { v: u.version }), ready: t('Version {v} is ready. It is installed when you close Snipload.', { v: u.version }),
     current: t('You have the newest version.'), error: u.error || '' }[u.state] || '';
   out.push(Sec(t('About'),
-    Row(t('Snipload {v}', { v: b.version }), Btn(t('Check for updates'), { sm: true, icon: 'refresh-cw', onclick: e => busy(e.currentTarget, () => api('update_check').catch(err => toast(err.message, 'error'))) }), { hint: state }),
+    Row('Snipload ' + b.version, Btn(t('Check for updates'), { sm: true, icon: 'refresh-cw', onclick: e => busy(e.currentTarget, () => api('update_check').catch(err => toast(err.message, 'error'))) }), { hint: state }),
     Row(t('Update automatically'), Switch(cfg.auto_update !== false, v => setCfg('auto_update', v))),
     h('div.hstack.wrap', { style: { marginTop: '10px' } },
       Btn(t('Keyboard shortcuts'), { sm: true, kind: 'ghost', icon: 'keyboard', onclick: () => import('./app.js').then(m => m.showShortcuts()) }),

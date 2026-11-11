@@ -117,7 +117,7 @@ function showUpdate() {
   const u = S.update || {};
   const body = h('div');
   const foot = h('div.hstack');
-  const m = modal({ title: t('Snipload {v}', { v: u.version || '' }), body, foot: [foot] });
+  const m = modal({ title: 'Snipload ' + (u.version || ''), body, foot: [foot] });
   const paint = () => {
     const s = S.update || {};
     clear(body, s.notes ? h('div.selectable', { style: { whiteSpace: 'pre-wrap', maxHeight: '320px', overflow: 'auto' } }, s.notes) : h('p', t('A new version is available.')));
@@ -138,9 +138,9 @@ function showUpdate() {
 }
 
 const SHORTCUTS = [
-  ['Editor', [['Space', 'Play or pause'], ['I', 'Set the start of the clip'], ['O', 'Set the end of the clip'], ['Q / W', 'Jump to the start or end of the clip'],
+  ['Editor', [['Space', 'Play or pause'], ['I', 'Start the clip here'], ['O', 'End the clip here'], ['Q / W', 'Jump to the start or end of the clip'],
     ['← / →', 'Step 1 second (Shift: 5 seconds, Alt: one frame)'], ['J / L', 'Jump 10 seconds back or forward'], ['A', 'Add the clip to the list'],
-    ['S', 'Save the current frame as an image'], ['M', 'Mute'], ['+ / −', 'Zoom the timeline'], ['Ctrl+Enter', 'Export']]],
+    ['S', 'Save this frame as an image'], ['M', 'Mute'], ['+ / −', 'Zoom the timeline'], ['Ctrl+Enter', 'Export']]],
   ['Everywhere', [['Ctrl+K', 'Search or paste a link'], ['Ctrl+V', 'Open the link from the clipboard'], ['Ctrl+1 … 4', 'Switch between Find, Editor, Exports and Library'], ['?', 'Show these shortcuts']]],
 ];
 function showShortcuts() {
@@ -192,6 +192,11 @@ function wireInput() {
     const text = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').split('\n')[0].trim();
     if (text) openText(text);
   });
+  // Klick in ein eingebettetes Video nimmt dem Fenster die Tastatur weg -> zurueckholen, damit Leertaste, I/O usw. weiter gehen
+  setInterval(() => {
+    const a = document.activeElement;
+    if (a && a.tagName === 'IFRAME' && a.closest('.mon-host')) { a.blur(); window.focus(); }
+  }, 400);
   addEventListener('contextmenu', e => { if (!typing(e) && !e.target.closest('.selectable')) e.preventDefault(); });
 }
 

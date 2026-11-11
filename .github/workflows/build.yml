@@ -4,7 +4,7 @@ name: Windows-Build
 # und stellt sie unter "Releases" zum Download bereit.
 on:
   push:
-    branches: [main]
+    branches: [main, v4-wip]     # v4-wip: nur bauen und testen, nichts veroeffentlichen
     paths:
       - "src/**"
       - "assets/**"
@@ -52,6 +52,7 @@ jobs:
           --add-data "assets/haarcascade_frontalface_default.xml;."
           --add-data "assets/haarcascade_frontalface_alt2.xml;."
           --add-data "assets/haarcascade_profileface.xml;."
+          --add-data "src/snipload/web;web"
           --version-file tools/version_info.txt
           --paths src
           src/main.py
@@ -63,34 +64,61 @@ jobs:
           Get-Content selftest.txt
           if ($p.ExitCode -ne 0) { Write-Error "Selbsttest fehlgeschlagen"; exit 1 }
 
-      - name: Starttest (erscheint das Fenster wirklich?)
+      - name: Starttest (erscheint das Fenster, laedt die Oberflaeche ohne Fehler?)
         shell: pwsh
         run: |
+          $env:SNIPLOAD_UITEST = "$PWD\uitest.json"
           $p = Start-Process -FilePath "dist/Snipload.exe" -PassThru
           $ok = $false
-          $deadline = (Get-Date).AddSeconds(60)
+          $deadline = (Get-Date).AddSeconds(90)
           while ((Get-Date) -lt $deadline) {
             $win = Get-Process -Name Snipload -ErrorAction SilentlyContinue |
                    Where-Object { $_.MainWindowTitle -like "Snipload*" }
-            if ($win) { $ok = $true; break }
+            if ($win -and (Test-Path uitest.json)) { $ok = $true; break }
             Start-Sleep -Seconds 2
           }
           Get-Process -Name Snipload -ErrorAction SilentlyContinue | Format-Table Id, MainWindowTitle -AutoSize
-          if ($ok) {
-            Start-Sleep -Seconds 4
-            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-            $g = [System.Drawing.Graphics]::FromImage($bmp)
-            $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-            $bmp.Save("Snipload-Vorschau.png")
-            Write-Host "Snipload-Fenster ist erschienen - Starttest bestanden."
-          }
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("Snipload-Vorschau.png")
           Get-Process -Name Snipload -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (Test-Path uitest.json) { Get-Content uitest.json }
           if (-not $ok) {
-            Write-Error "Snipload hat kein Fenster geoeffnet (Absturz oder Fehlermeldung beim Start)."
+            Write-Error "Snipload hat kein Fenster geoeffnet oder die Oberflaeche nicht geladen."
             exit 1
           }
+          $r = Get-Content uitest.json -Raw | ConvertFrom-Json
+          if (-not $r.ok) { Write-Error "Die Oberflaeche wurde nicht fehlerfrei geladen."; exit 1 }
+          Write-Host "Fenster ist erschienen und die Oberflaeche laeuft - Starttest bestanden."
+
+      - name: Probe mit echtem Internet (Twitch, YouTube, Rendern, KI-Untertitel) - nur zum Nachsehen
+        if: github.ref != 'refs/heads/main'
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: pwsh
+        run: |
+          $env:LOCALAPPDATA = "$PWD\testdaten\local"
+          $env:APPDATA = "$PWD\testdaten\roaming"
+          New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA, $env:APPDATA | Out-Null
+          $p = Start-Process -FilePath "dist/Snipload.exe" -ArgumentList "--nettest", "nettest.txt" -PassThru
+          $deadline = (Get-Date).AddMinutes(22)
+          while (-not $p.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 5 }
+          if (-not $p.HasExited) { $p | Stop-Process -Force }
+          if (Test-Path nettest.txt) { Get-Content nettest.txt -Encoding UTF8 }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Vorschau-${{ steps.ver.outputs.full }}
+          path: |
+            Snipload-Vorschau.png
+            uitest.json
+            selftest.txt
+            nettest.txt
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         with:
@@ -98,6 +126,7 @@ jobs:
           path: dist/Snipload.exe
 
       - name: Release veroeffentlichen
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}

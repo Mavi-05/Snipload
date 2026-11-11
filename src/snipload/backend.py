@@ -669,6 +669,9 @@ class Backend:
         if job.status == Job.DONE and not getattr(job, "_handled", False):
             job._handled = True
             self._add_history(job)
+            if self.cfg.get("sound", True) and not any(j.active for j in self.queue.jobs):
+                from .util import win_sound_done
+                win_sound_done()
             if getattr(job, "open_in", None):
                 try:
                     res = self._send_to_editor(job.open_in, [job.file], getattr(job, "open_mode", None))
