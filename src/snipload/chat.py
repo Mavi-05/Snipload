@@ -160,10 +160,18 @@ def third_party_emotes(twitch_user_id):
         jobs += [(f"https://7tv.io/v3/users/twitch/{twitch_user_id}", "7tv_user"),
                  (f"https://api.betterttv.net/3/cached/users/twitch/{twitch_user_id}", "bttv_user"),
                  (f"https://api.frankerfacez.com/v1/room/id/{twitch_user_id}", "ffz")]
-    for url, kind in jobs:
+    # alle Quellen gleichzeitig abfragen - haengt eine, haelt sie die anderen nicht auf
+    from concurrent.futures import ThreadPoolExecutor
+
+    def fetch(job):
         try:
-            d = _get_json(url)
+            return job[1], _get_json(job[0], 8)
         except Exception:
+            return job[1], None
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        results = list(ex.map(fetch, jobs))
+    for kind, d in results:
+        if d is None:
             continue
         try:
             if kind in ("7tv_set", "7tv_user"):

@@ -108,8 +108,13 @@ def run(out_path):
 
     def tw_clip_info():
         info = tools.fetch_info(state["clip_url"])
-        fmts = [f for f in info.get("formats") or [] if f.get("vcodec") not in (None, "none")]
-        return f"{info.get('title', '')[:40]!r} {info.get('duration')} s, Formate {[(f.get('format_id'), f.get('protocol'), f.get('acodec')) for f in fmts][:4]}"
+        from .backend import Backend
+        fmts = info.get("formats") or []
+        src = Backend._preview_src(info, progressive=True)
+        frame = tools.pick_frame_format(info)
+        return (f"{info.get('title', '')[:40]!r} {info.get('duration')} s, Formate "
+                f"{[(f.get('format_id'), f.get('protocol'), f.get('vcodec'), f.get('acodec'), f.get('height')) for f in fmts][:4]}, "
+                f"direkt abspielbar: {bool(src)}, Standbild-Format: {bool(frame)}")
     step("Twitch-Clip ueber yt-dlp", tw_clip_info)
 
     # ---------------------------------------------------------------- YouTube (kann am Build-Rechner gesperrt sein)

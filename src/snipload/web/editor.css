@@ -158,7 +158,7 @@
 .cap-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; text-align: center; line-height: 1.2; font-kerning: normal; font-synthesis: none; font-feature-settings: normal; font-variant-numeric: normal; }
 .cap-block { position: absolute; left: 6%; right: 6%; top: 72%; transform: translateY(-50%); filter: var(--cap-shadow, none); }
 .cap-page { display: flex; flex-direction: column; align-items: center; transform-origin: center; }
-.cap-line { display: inline-block; white-space: nowrap; background: var(--cap-box, transparent); padding: 0 var(--cap-pad, 0); }
+.cap-line { display: inline-block; white-space: nowrap; background: var(--cap-box, transparent); padding: var(--cap-pad, 0); margin: calc(var(--cap-pad, 0px) * -1) 0; vertical-align: top; }
 .cap-word { display: inline-block; -webkit-text-stroke: var(--cap-stroke, 0) var(--cap-stroke-color, #000); paint-order: stroke fill; transform-origin: center 60%; }
 .cap-layer[data-hl="color"] .cap-word.act, .cap-layer[data-hl="scale"] .cap-word.act { color: var(--cap-hl); }
 .cap-layer[data-hl="scale"] .cap-word.act { transform: scale(1.12); }

@@ -63,23 +63,118 @@ def _need_webview2():
 
 
 def _ui_test(win, path):
-    """Fuer den Build-Test: prueft im echten Fenster, ob die Oberflaeche geladen wurde, und schreibt das Ergebnis in eine Datei."""
+    """Fuer den Build-Test: prueft im echten Fenster, ob die Oberflaeche geladen wurde, und schreibt das Ergebnis in eine Datei.
+    Mit SNIPLOAD_UITEST_FULL folgt ein zweiter Teil mit echtem Internet: Twitch-VOD oeffnen, abspielen, 9:16-Vorschau,
+    YouTube-Einbettung (Ergebnis in <datei>2.json)."""
     import json
+
+    def js(code):
+        out = win.evaluate_js(code)
+        return json.loads(out) if isinstance(out, str) else out
+
+    def save(p, res):
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(res, f, ensure_ascii=False, indent=1)
 
     def run():
         time.sleep(float(os.environ.get("SNIPLOAD_UITEST_WAIT") or 8))
         res = {"ok": False}
         try:
-            js = ("JSON.stringify({title: (document.querySelector('.home-title') || {}).textContent || '', "
-                  "rail: document.querySelectorAll('.rail-btn').length, booted: !document.getElementById('boot'), "
-                  "errors: window.__errs || [], ua: navigator.userAgent, font: document.fonts.check('13px Geist')})")
-            out = win.evaluate_js(js)
-            res = json.loads(out) if isinstance(out, str) else (out or {})
+            res = js("JSON.stringify({title: (document.querySelector('.home-title') || {}).textContent || '', "
+                     "rail: document.querySelectorAll('.rail-btn').length, booted: !document.getElementById('boot'), "
+                     "errors: window.__errs || [], ua: navigator.userAgent, font: document.fonts.check('13px Geist')})") or {}
             res["ok"] = bool(res.get("title")) and res.get("rail", 0) >= 5 and not res.get("errors")
         except Exception as ex:  # noqa
             res["error"] = repr(ex)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(res, f, ensure_ascii=False, indent=1)
+        save(path, res)
+        if not os.environ.get("SNIPLOAD_UITEST_FULL"):
+            return
+        time.sleep(6)       # Zeit fuer das erste Bildschirmfoto
+        res2 = {}
+        try:
+            from . import search
+            url = None
+            for login in ("shroud", "esl_csgo", "riotgames", "gronkh"):
+                try:
+                    items = search.twitch_channel(login, "archives")["items"]
+                    if items:
+                        url = items[min(1, len(items) - 1)]["url"]     # nicht das gerade laufende
+                        break
+                except Exception as ex:  # noqa
+                    res2["channel_error"] = repr(ex)
+            res2["url"] = url
+            code = """
+            window.__t2 = null;
+            (async () => {
+              const sleep = ms => new Promise(r => setTimeout(r, ms));
+              const out = {};
+              try {
+                document.querySelectorAll('.modal-back').forEach(b => b.remove());
+                const m = await import('/app/js/editor.js');
+                m.openVideo(%s);
+                for (let i = 0; i < 160 && !m.E.player; i++) await sleep(500);
+                out.loaded = !!m.E.meta; out.player = m.E.player ? m.E.player.kind : null;
+                out.title = m.E.meta && m.E.meta.title; out.dur = m.E.dur;
+                out.storyboard = !!(m.E.meta && m.E.meta.storyboard); out.chat = !!(m.E.meta && m.E.meta.chat);
+                m.seek(Math.min(600, m.E.dur / 2));
+                await sleep(1500);
+                document.querySelector('.play-btn').click();
+                await sleep(9000);
+                out.t = m.E.t; out.playing = m.E.playing;
+                document.querySelectorAll('.fmt')[1].click();
+                await sleep(10000);
+                out.feed = m.E.feed ? m.E.feed.mode : null; out.t2 = m.E.t;
+                out.canvas = (() => { const c = document.querySelector('.mon-out canvas'); return c ? c.width + 'x' + c.height : null; })();
+              } catch (e) { out.error = String(e && e.stack || e); }
+              out.errors = window.__errs;
+              window.__t2 = out;
+            })();
+            """ % json.dumps(url)
+            win.evaluate_js(code)
+            for _i in range(140):
+                time.sleep(1)
+                got = js("JSON.stringify(window.__t2 || null)")
+                if got:
+                    res2.update(got)
+                    break
+        except Exception as ex:  # noqa
+            res2["error"] = repr(ex)
+        save(path.replace(".json", "2.json"), res2)
+        time.sleep(8)       # Zeit fuer das zweite Bildschirmfoto
+        res3 = {}
+        try:
+            code = """
+            window.__t3 = null;
+            (async () => {
+              const sleep = ms => new Promise(r => setTimeout(r, ms));
+              const out = {};
+              try {
+                const pm = await import('/app/js/player.js');
+                const host = document.createElement('div');
+                host.style.cssText = 'position:fixed;left:90px;top:70px;width:640px;height:360px;z-index:999;background:#000';
+                document.body.append(host);
+                const p = await pm.createPlayer(host, { id: 'x', duration: 19, embed: { type: 'youtube', id: 'jNQXAC9IVRw' } }, 0);
+                out.kind = p.kind;
+                p.onFail = c => { out.failed = c; };
+                await sleep(2500);
+                p.play();
+                await sleep(7000);
+                out.time = p.time; out.playing = p.playing; out.state = p.state;
+              } catch (e) { out.error = String(e && e.stack || e); }
+              out.errors = window.__errs;
+              window.__t3 = out;
+            })();
+            """
+            win.evaluate_js(code)
+            for _i in range(60):
+                time.sleep(1)
+                got = js("JSON.stringify(window.__t3 || null)")
+                if got:
+                    res3.update(got)
+                    break
+        except Exception as ex:  # noqa
+            res3["error"] = repr(ex)
+        save(path.replace(".json", "3.json"), res3)
     threading.Thread(target=run, daemon=True).start()
 
 

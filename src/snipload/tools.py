@@ -395,15 +395,33 @@ def pick_preview_storyboard(info, strip_fmt):
     return best
 
 
+def is_video_format(f):
+    """Hat dieses Format ein Bild? Twitch-Clips nennen keinen Codec - dort zaehlt die Bildgroesse."""
+    if not f or not f.get("url") or str(f.get("format_id", "")).startswith("sb"):
+        return False
+    v = f.get("vcodec")
+    if v == "none":
+        return False
+    return bool(v or f.get("height") or f.get("width"))
+
+
+def has_audio(f):
+    """Hat dieses Format Ton? Ohne Codec-Angaben (Twitch-Clips) ist es eine normale Datei mit Bild und Ton."""
+    a = f.get("acodec")
+    if a == "none":
+        return False
+    return bool(a) or f.get("vcodec") is None
+
+
 def pick_frame_format(info, max_h=1080):
     """Video-Format fuer Standbilder: direkte https-Datei, am liebsten H.264.
 
     max_h=1080: fuer die Vorschau (720p ideal). max_h=None: hoechste Aufloesung (Facecam 1:1)."""
     cands = []
     for f in info.get("formats") or []:
-        if f.get("vcodec") in (None, "none") or not f.get("url"):
+        if not is_video_format(f):
             continue
-        proto = f.get("protocol") or ""
+        proto = f.get("protocol") or ("https" if str(f.get("url", "")).startswith("http") else "")
         if proto not in ("https", "http", "m3u8", "m3u8_native"):  # m3u8: Twitch-VODs
             continue
         h = f.get("height") or 0

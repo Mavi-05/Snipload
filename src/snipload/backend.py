@@ -242,7 +242,7 @@ class Backend:
         dur = float(info.get("duration") or 0)
         w, h = info.get("width"), info.get("height")
         if not w or not h:
-            best = max([f for f in info.get("formats") or [] if f.get("height") and f.get("vcodec") not in (None, "none")],
+            best = max([f for f in info.get("formats") or [] if f.get("height") and tools.is_video_format(f)],
                        key=lambda f: f.get("height") or 0, default=None)
             if best:
                 w, h = best.get("width"), best.get("height")
@@ -301,22 +301,22 @@ class Backend:
         """Kleine direkt abspielbare Videoquelle fuer die Live-Vorschau (9:16-Handy). Bevorzugt H.264 bis 480p."""
         cands = []
         for f in info.get("formats") or []:
-            if f.get("vcodec") in (None, "none") or not f.get("url"):
+            if not tools.is_video_format(f):
                 continue
-            proto = f.get("protocol") or ""
+            proto = f.get("protocol") or ("https" if str(f.get("url", "")).startswith("http") else "")
             if proto not in ("https", "http", "m3u8", "m3u8_native"):
                 continue
-            has_audio = f.get("acodec") not in (None, "none")
+            has_audio = tools.has_audio(f)
             if progressive and (not has_audio or proto.startswith("m3u8")):
                 continue
             h = f.get("height") or 0
             if not h:
                 continue
             codec = (f.get("vcodec") or "").lower()
-            if not progressive and not codec.startswith(("avc", "h264", "vp9", "vp09")) and not proto.startswith("m3u8"):
+            if not progressive and codec and not codec.startswith(("avc", "h264", "vp9", "vp09")) and not proto.startswith("m3u8"):
                 continue
             score = (0 if proto.startswith("m3u8") else 1,
-                     -abs(h - (720 if progressive else 480)),
+                     -abs(h - (1080 if progressive else 480)),
                      1 if codec.startswith(("avc", "h264")) else 0,
                      1 if has_audio else 0)
             cands.append((score, f))
@@ -324,7 +324,7 @@ class Backend:
             return None
         f = max(cands, key=lambda x: x[0])[1]
         return {"url": f["url"], "kind": "hls" if (f.get("protocol") or "").startswith("m3u8") else "file",
-                "w": f.get("width"), "h": f.get("height"), "audio": f.get("acodec") not in (None, "none")}
+                "w": f.get("width"), "h": f.get("height"), "audio": tools.has_audio(f)}
 
     def _storyboard(self, info, dur):
         sbs = [f for f in info.get("formats") or [] if str(f.get("format_id", "")).startswith("sb")
