@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="assets/icon_1024.png" width="112" alt="Snipload-Icon">
+  <img src="assets/icon_1024.png" width="112" alt="Snipload-Symbol">
 </p>
 
 <h1 align="center">Snipload</h1>
 
 <p align="center">
-  <b>Lädt nur den Teil eines YouTube-Videos herunter, den du wirklich brauchst.</b><br>
-  Start und Ende wählen – Snipload holt genau diesen Abschnitt, sekundengenau, und macht auf Wunsch gleich einen fertigen Short daraus.
+  <b>Video auf YouTube oder Twitch finden, den gewünschten Teil schneiden, fertigen Clip bekommen.</b><br>
+  Mit Live-Vorschau, Hochkant-Formaten, animierten Untertiteln, Chat und einem Klick ins Schnittprogramm.
 </p>
 
 <p align="center">
@@ -16,108 +16,143 @@
 </p>
 
 <p align="center">
-  <img src="docs/main.png" width="860" alt="Snipload: Link einfügen, Start und Ende auf der Zeitleiste ziehen, herunterladen">
+  <img src="docs/editor.png" width="900" alt="Der Snipload-Editor: links das Video, rechts der fertige Hochkant-Clip, darunter die Zeitleiste">
 </p>
 
 ---
 
 ## Warum Snipload?
 
-Einen ganzen 3-Stunden-Stream herunterzuladen, um drei Minuten davon zu behalten, dauert und kostet
-Speicherplatz. Snipload fragt YouTube nur nach dem Abschnitt, den du auswählst, zum Beispiel von `0:42` bis
-`1:07`, und schneidet ihn genau dort. Ohne Konto, ohne Werbung, ohne Browser-Erweiterung.
+Einen 3-Stunden-Stream komplett zu laden, um 30 Sekunden zu behalten, dauert lange und kostet Platz.
+Snipload holt von YouTube oder Twitch nur den Teil, den du auswählst, schneidet ihn genau und macht daraus
+im selben Schritt einen fertigen Short. Ohne Konto, ohne Werbung, ohne Browser-Erweiterung.
 
-## Funktionen
+## Was es kann
 
-### ✂️ Genau den Clip, den du willst
-- **Link einfügen und los.** Kopierst du einen YouTube-Link, übernimmt Snipload ihn von selbst aus der Zwischenablage.
-- **Filmstreifen-Zeitleiste** wie im Videoschnitt: Start- und End-Griff ziehen oder die Mitte ziehen, um den
-  ganzen Abschnitt zu verschieben. Beim Darüberfahren siehst du das Bild genau an dieser Stelle, erst aus dem
-  Storyboard und kurz danach als scharfes HD-Standbild.
-- **Zeitfelder** mit −/+, Mausrad und Pfeiltasten (Umschalt = 5 s, Alt = 0,1 s).
-- **Links mit Zeitangabe** (`&t=125`, `?t=1m30s`) setzen den Start automatisch.
-- **Sekundengenaues Schneiden.** Ausgeschaltet lädt es noch schneller.
+### Finden
+- **Link einfügen** (oder irgendwo in der App `Strg+V` drücken) – das Video öffnet sich im Editor.
+- **YouTube durchsuchen**: Videos, Kanäle und Livestreams.
+- **Twitch-Kanäle öffnen**: vergangene Streams, Highlights, Uploads und die Top-Clips der Woche, des Monats
+  oder aller Zeiten. Ist der Streamer gerade live, kannst du den laufenden Stream über seine Aufzeichnung clippen.
+- **Kanäle speichern**, von denen du oft clippst. Zuletzt geöffnete Videos sind einen Klick entfernt.
 
-### 📱 Fertig für Shorts, TikTok und Reels
-| Format | Ergebnis |
+<p align="center"><img src="docs/find.png" width="900" alt="Suchergebnisse in Snipload"></p>
+
+### Schneiden
+- **Video im Editor ansehen** und Anfang und Ende mit der Maus, den Zeitfeldern oder `I` und `O` setzen.
+- **Zeitleiste** mit Vorschaubildern, Kapiteln und der „Meistwiederholt“-Kurve von YouTube. Scrollen zoomt.
+- **Beste Momente aus dem Chat**: Snipload liest den Chat eines Streams und markiert, wo am meisten los war.
+- **Mehrere Clips auf einmal**: Abschnitte in eine Liste legen und alle mit denselben Einstellungen exportieren.
+- **Bildgenaue Schnitte** – oder schnellere, wenn du das nicht brauchst.
+
+### Formate
+| Format | Was du bekommst |
 |---|---|
-| **Original** | Das Video wie auf YouTube, bis 4K |
-| **Shorts 9:16** | 1080×1920, aus der Bildmitte geschnitten |
-| **Shorts + Blur** | 1080×1920, ganzes Bild in der Mitte mit unscharfem Hintergrund |
-| **Facecam-Split** | 1080×1920 mit Facecam oben und Gameplay unten |
-| **Nur Facecam** | Nur die Facecam als eigenes Video, 1:1 in Originalgröße |
-| **Original + Facecam** | Ein Download, zwei Dateien: das normale Video und die Facecam |
+| **Original** | Das Video, wie es ist, bis 4K |
+| **Hochkant** | 9:16, zugeschnitten. Den Ausschnitt ziehst du dahin, wo du ihn willst |
+| **Hochkant, ganzes Bild** | 9:16 mit dem ganzen Bild und unscharfem Hintergrund |
+| **Gameplay und Facecam** | 9:16 mit der Facecam oben und dem Gameplay unten |
+| **Nur Facecam** | Nur die Kamera als eigenes Video |
 | **Nur Ton** | MP3, M4A oder WAV |
+| **GIF** | Für Chats und Foren |
 
-### 🎥 Automatische Facecam-Erkennung (Streams und VODs, auch Twitch)
+Das Ergebnis läuft live neben dem Video mit. Bei den Facecam-Formaten findet Snipload die Kamera von selbst;
+du kannst den Rahmen verschieben, beide Teile zoomen und die Grenze dazwischen ziehen.
 
-<img src="docs/short-example.png" width="190" align="right" alt="Beispiel für einen Facecam-Split-Short">
+### Untertitel
+<img src="docs/captions.png" width="900" alt="Animierte Untertitel in der Hochkant-Vorschau">
 
-- Snipload prüft rund 10 Bilder über deinen Zeitraum, findet das Gesicht und **misst die Facecam dann
-  pixelgenau in voller Auflösung**. Der Rahmen bleibt weg, und Standardgrößen wie 640×360 rasten ein.
-- Es **prüft den ganzen Zeitraum** und warnt mit Zeitpunkt, falls die Facecam irgendwo fehlt.
-- **Du behältst die Kontrolle.** Rahmen auf die Facecam ziehen, genaue Pixelwerte eintippen oder mit den
-  Pfeiltasten um 1 px verschieben.
-- **Facecam und Gameplay größer oder kleiner machen.** Trennlinie ziehen, mit dem Mausrad zoomen und mit
-  der Maus verschieben, alles in einer Live-Vorschau im 9:16-Format. Snipload wählt die Größen automatisch
-  so, dass die Facecam ohne Abschneiden passt.
+- **KI-Mitschrift** für jedes Video (läuft mit whisper.cpp auf deinem PC, nichts wird hochgeladen) oder die
+  Untertitel, die YouTube schon hat.
+- **Wort-für-Wort-Animation** mit acht Stilen als Ausgangspunkt.
+- **Jede Schriftart**: die mitgelieferten, alle auf deinem PC installierten oder deine eigene Schriftdatei.
+- Größe, Position, Farben, Kontur, Schatten, Kasten, Hervorhebung des gesprochenen Worts. Wörter korrigierst
+  du direkt in der Liste.
+- Ins Video eingebrannt, als eigene `.srt`-Datei oder beides.
 
-<br clear="right">
+### Chat
+- **Chat herunterladen** – von Twitch-VODs und YouTube-Streams, passend zu deinem Clip, mit Abzeichen und
+  Emotes (auch 7TV, BetterTTV und FrankerFaceZ).
+- **Im Video zeigen** oder **als eigenes transparentes Video speichern** (MOV mit Alpha, WebM oder
+  Greenscreen), um ihn im Schnittprogramm selbst zu platzieren.
 
-<p align="center"><img src="docs/facecam-editor.png" width="860" alt="Facecam-Editor mit 9:16-Live-Vorschau"></p>
+### Verbessern
+- Tempo, Helligkeit, Kontrast, Farbe, Schärfe, Lautstärke, Lautstärke-Angleichung, Blenden.
+- **Hochskalieren** auf 1080p, 1440p oder 4K: schnell, mit KI (Real-ESRGAN, wird bei Bedarf geladen) oder
+  mit Topaz Video AI, falls du es installiert hast.
+- Datei unter einer Größe halten, zum Beispiel 10 MB für Discord.
 
-### ⚡ Schnell und ohne Stress
-- **Kodieren mit der Grafikkarte** (NVIDIA, Intel, AMD), wenn vorhanden, sonst mit einer schnellen CPU-Einstellung.
-- **Warteschlange:** mehrere Clips sammeln, Snipload lädt sie nacheinander.
-- **Verlauf** mit Vorschaubildern, Suche und „Nochmal“.
-- **Läuft sofort:** Snipload lädt [yt-dlp](https://github.com/yt-dlp/yt-dlp) und [ffmpeg](https://ffmpeg.org)
-  selbst herunter, ohne Adminrechte und ohne winget.
-- **Bleibt funktionsfähig:** yt-dlp wird automatisch aktuell gehalten. Verweigert YouTube einen Download
-  (HTTP 403), aktualisiert Snipload yt-dlp und versucht von selbst einen anderen Weg.
-- **Aktualisiert sich selbst:** Neue Versionen laden im Hintergrund, danach startet Snipload neu und macht
-  genau dort weiter, wo du warst.
+### Ab ins Schnittprogramm
+- **Premiere Pro**: Der Clip erscheint von selbst in deinem geöffneten Projekt – in einer Ablage, an der
+  Abspielposition oder als neue Sequenz. Snipload installiert dafür eine kleine Erweiterung; beim ersten Mal
+  braucht Premiere einen Neustart.
+- **After Effects**: Der Clip wird importiert und als Komposition geöffnet.
+- **CapCut, DaVinci Resolve, VEGAS** und jedes Programm, das du hinzufügst: Snipload öffnet es und legt den
+  Clip in die Zwischenablage – einfach einfügen.
 
-### 🌍 10 Sprachen
-English · Deutsch · 日本語 · Español · Français · Português · 한국어 · 简体中文 · Türkçe · Русский
+### Und sonst
+- **10 Sprachen**: English · Deutsch · 日本語 · Español · Français · Português · 한국어 · 简体中文 · Türkçe · Русский
+- **Läuft sofort**: Snipload lädt [yt-dlp](https://github.com/yt-dlp/yt-dlp) und
+  [ffmpeg](https://ffmpeg.org) selbst und hält yt-dlp aktuell.
+- **Aktualisiert sich selbst** im Hintergrund.
+- **Bibliothek** mit allem, was du exportiert hast – mit Suche und Wiedergabe.
 
-Standard ist Englisch. Umstellen unter **Settings → Language** bzw. **Einstellungen → Sprache**.
+## So geht's los
 
-## Loslegen
+1. **[`Snipload.exe` herunterladen](../../releases/latest)** (unter *Assets*) und starten. Es gibt nichts zu installieren.
+2. Zeigt Windows *„Der Computer wurde durch Windows geschützt“*, klick auf **Weitere Informationen →
+   Trotzdem ausführen**. Das passiert bei neuen Apps ohne Code-Signatur.
+3. Beim ersten Start bietet Snipload an, yt-dlp und ffmpeg zu laden. Klick auf **Jetzt herunterladen** und
+   warte etwa eine Minute.
+4. Link einfügen oder suchen, Abschnitt wählen, **Export** drücken.
 
-1. **[`Snipload.exe` herunterladen](../../releases/latest)** (unter *Assets*) und starten. Installieren musst du nichts.
-2. Zeigt Windows *„Der Computer wurde durch Windows geschützt“*, auf **Weitere Informationen → Trotzdem
-   ausführen** klicken. Das kommt bei neuen Programmen ohne Code-Signatur vor.
-3. Beim ersten Mal bietet Snipload an, yt-dlp und ffmpeg herunterzuladen. **Installieren** klicken und etwa eine Minute warten.
-4. YouTube-Link kopieren, Start und Ende ziehen, dann **Herunterladen** klicken. 🎬
-
-**Tastenkürzel:** `Strg+V` Link einfügen · `Strg+Enter` herunterladen · `Strg+1…4` Seiten wechseln
+**Tastenkürzel:** `Leertaste` abspielen · `I` / `O` Anfang und Ende · `Q` / `W` zum Anfang und Ende springen ·
+`A` Clip zur Liste · `Strg+Enter` exportieren · `Strg+K` suchen · `?` zeigt alle
 
 ## Häufige Fragen
 
 <details>
-<summary><b>Der Download ist sehr langsam („0.1× Tempo“)</b></summary>
+<summary><b>Das Video spielt im Editor nicht ab</b></summary>
 
-Beim sekundengenauen Schneiden muss das Video neu kodiert werden. Auf älteren oder langsameren PCs kann das
-bei 1440p oder 4K dauern. Snipload nutzt dafür die Grafikkarte, wenn es geht. Du kannst auch
-**Einstellungen → Sekundengenau schneiden** ausschalten, das ist um ein Vielfaches schneller. Der Clip
-beginnt dann aber eventuell ein, zwei Sekunden früher.
+YouTube-Videos laufen über den Player von YouTube. Ein paar Videos erlauben das nicht (manche Musikvideos
+zum Beispiel). Dann spielt Snipload das Video direkt ab, und wenn auch das nicht geht, zeigt es Standbilder.
+Schneiden und Exportieren klappen in jedem Fall.
+</details>
+
+<details>
+<summary><b>Der Export ist langsam</b></summary>
+
+Bildgenaues Schneiden, Hochkant-Formate, Untertitel und Effekte bedeuten, dass das Video neu gerendert wird.
+Snipload nutzt deine Grafikkarte, wenn es geht. Bei einfachen Clips kannst du im Reiter „Export“
+**Bildgenau schneiden** ausschalten – das ist um ein Vielfaches schneller, der Clip kann dann aber einen
+Moment zu früh beginnen. KI-Hochskalieren ist von Natur aus langsam.
 </details>
 
 <details>
 <summary><b>„YouTube hat den Download verweigert (HTTP 403)“</b></summary>
 
-YouTube ändert ständig etwas, und ältere yt-dlp-Versionen funktionieren dann nicht mehr. Snipload
-aktualisiert yt-dlp bereits automatisch und versucht es erneut. Kommt es trotzdem, ein paar Minuten warten und
-noch einmal versuchen.
+YouTube ändert oft etwas, und ältere yt-dlp-Versionen funktionieren dann nicht mehr. Snipload aktualisiert
+yt-dlp und versucht es von selbst noch einmal. Passiert es trotzdem, warte ein paar Minuten und probier es erneut.
 </details>
 
 <details>
-<summary><b>Wo landen meine Dateien?</b></summary>
+<summary><b>Wo sind meine Dateien?</b></summary>
 
-Standardmäßig im Ordner **Downloads**. Ändern kannst du das unter Einstellungen → Speichern. Dateinamen folgen
-einer Vorlage mit `{title}`, `{channel}`, `{start}`, `{end}`, `{date}` und `{id}`.
+Standardmäßig im Ordner **Downloads**. Ändern kannst du das in den Einstellungen oder im Reiter „Export“.
+Dateinamen folgen einer Vorlage mit `{title}`, `{channel}`, `{start}`, `{end}`, `{date}` und `{id}`.
 </details>
 
-> Bitte nur Inhalte herunterladen, die du verwenden darfst.
+<details>
+<summary><b>Ist das sicher?</b></summary>
 
-Technische Details und Aufbau des Codes: siehe [README.md](README.md#for-developers).
+Der Quellcode liegt hier offen. Jede Version wird von GitHub Actions automatisch aus diesem Code gebaut
+(siehe *Actions*). Snipload spricht mit YouTube und Twitch, mit GitHub (Updates und Werkzeuge), mit dem
+offiziellen ffmpeg-Server, mit Hugging Face (Sprachmodell, nur wenn du KI-Untertitel nutzt) und mit den
+Emote-Diensten 7TV, BetterTTV und FrankerFaceZ (nur wenn du einen Twitch-Chat lädst).
+</details>
+
+> Bitte lade nur Inhalte herunter, die du verwenden darfst.
+
+## Für Entwickler
+
+Siehe den Abschnitt [For developers](README.md#for-developers) in der englischen Fassung.

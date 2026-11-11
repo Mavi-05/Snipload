@@ -5,8 +5,8 @@
 <h1 align="center">Snipload</h1>
 
 <p align="center">
-  <b>Download just the part of a YouTube video you actually need.</b><br>
-  Pick a start and an end – Snipload grabs only that section, frame-accurate, and can turn it into a ready-to-post Short.
+  <b>Find a video on YouTube or Twitch, cut the part you want, and get a finished clip.</b><br>
+  With a live preview, vertical formats, animated captions, the chat, and one click into your editing program.
 </p>
 
 <p align="center">
@@ -16,136 +16,164 @@
 </p>
 
 <p align="center">
-  <img src="docs/main.png" width="860" alt="Snipload: paste a link, drag the start and end on the filmstrip timeline, download">
+  <img src="docs/editor.png" width="900" alt="The Snipload editor: source video on the left, the finished vertical clip on the right, timeline below">
 </p>
 
 ---
 
 ## Why Snipload?
 
-Downloading a whole 3-hour stream just to keep three minutes of it is slow and wastes space. Snipload asks
-YouTube only for the section you choose – from `0:42` to `1:07`, for example – and cuts it exactly at those
-points. No account, no ads, no browser extension.
+Downloading a whole 3-hour stream to keep 30 seconds of it is slow and wastes space. Snipload asks YouTube or
+Twitch only for the part you choose, cuts it exactly, and can turn it into a ready-to-post Short in the same
+step. No account, no ads, no browser extension.
 
-## Features
+## What it does
 
-### ✂️ Clip exactly what you want
-- **Paste a link and it loads.** Copy a YouTube link and Snipload picks it up from the clipboard by itself.
-- **Filmstrip timeline** like in a video editor: drag the start and end handles, or drag the middle to move
-  the whole section. Hovering shows the frame at that exact spot, first from the storyboard and a moment
-  later as a sharp HD still.
-- **Precise time fields** with −/+, mouse wheel and arrow keys (Shift = 5 s, Alt = 0.1 s).
-- **Links with a timestamp** (`&t=125`, `?t=1m30s`) set the start automatically.
-- **Frame-accurate cuts.** You can turn them off for even faster downloads.
+### Find
+- **Paste a link** (or press `Ctrl+V` anywhere in the app) and the video opens in the editor.
+- **Search YouTube** for videos, channels and live streams.
+- **Open Twitch channels**: past broadcasts, highlights, uploads and the top clips of the week, month or all
+  time. If the streamer is live, you can clip the running stream from its recording.
+- **Save channels** you clip from often. Recently opened videos are one click away.
 
-### 📱 Ready for Shorts, TikTok and Reels
+<p align="center"><img src="docs/find.png" width="900" alt="Search results in Snipload"></p>
+
+### Cut
+- **Watch the video in the editor** and set the start and end with the mouse, the time fields or `I` and `O`.
+- **Timeline** with preview pictures, chapters and YouTube's "most replayed" curve. Scroll to zoom.
+- **Best moments from the chat**: Snipload reads the chat of a stream and marks where it was busiest.
+- **Several clips at once**: add parts to a list and export them all with the same settings.
+- **Frame-accurate cuts**, or faster cuts if you don't need that.
+
+### Formats
 | Format | What you get |
 |---|---|
-| **Original** | The video as on YouTube, up to 4K |
-| **Shorts 9:16** | 1080×1920, cut from the center of the frame |
-| **Shorts + blur** | 1080×1920, the whole frame in the middle with a blurred background |
-| **Facecam split** | 1080×1920 with the facecam on top and the gameplay below |
-| **Facecam only** | Just the facecam as its own video, 1:1 at original size |
-| **Original + Facecam** | One download, two files: the normal video and the facecam |
-| **Audio only** | MP3, M4A or WAV |
+| **Original** | The video as it is, up to 4K |
+| **Vertical** | 9:16, cropped. Drag the crop where you want it |
+| **Vertical, full picture** | 9:16 with the whole picture and a blurred background |
+| **Gameplay and facecam** | 9:16 with the facecam on top and the gameplay below |
+| **Facecam only** | Just the camera as its own video |
+| **Sound only** | MP3, M4A or WAV |
+| **GIF** | For chats and forums |
 
-### 🎥 Automatic facecam detection (streams and VODs, Twitch too)
+The result is shown live next to the source video while it plays. For the facecam formats, Snipload finds
+the camera on its own; you can move the frame, zoom both parts and drag the border between them.
 
-<img src="docs/short-example.png" width="190" align="right" alt="Example of a Facecam split Short">
+### Captions
+<img src="docs/captions.png" width="900" alt="Animated captions in the vertical preview">
 
-- Snipload checks about 10 frames across your range, finds the face and then **measures the facecam
-  pixel-perfect at full resolution**. The border is left out, and standard sizes like 640×360 snap into place.
-- It **checks the whole range** and warns you if the facecam disappears somewhere, with the timestamp.
-- **You stay in control.** Drag the frame onto the facecam, type exact pixel values, or nudge it by 1 px
-  with the arrow keys.
-- **Make the facecam and the gameplay bigger or smaller.** Drag the divider, scroll to zoom and drag to
-  move, all in a live 9:16 preview. Snipload sets sensible sizes automatically, so the facecam fits
-  without being cropped.
+- **AI transcription** for any video (runs on your PC with whisper.cpp, nothing is uploaded), or the
+  subtitles YouTube already has.
+- **Word-by-word animation** with eight styles to start from.
+- **Any font**: the ones that come with Snipload, every font installed on your PC, or your own font file.
+- Size, position, colors, outline, shadow, box, highlight of the spoken word. Fix words directly in the list.
+- Burned into the video, as a separate `.srt` file, or both.
 
-<br clear="right">
+### Chat
+- **Download the chat** of a Twitch VOD or a YouTube stream for your clip, with badges and emotes
+  (including 7TV, BetterTTV and FrankerFaceZ).
+- **Show it in the video**, or **save it as its own transparent video** (MOV with alpha, WebM, or green
+  screen) to place it yourself in your editing program.
 
-<p align="center"><img src="docs/facecam-editor.png" width="860" alt="Facecam editor with live 9:16 preview"></p>
+### Enhance
+- Speed, brightness, contrast, color, sharpening, volume, loudness normalization, fades.
+- **Upscale** to 1080p, 1440p or 4K: fast, with AI (Real-ESRGAN, downloaded on demand), or with
+  Topaz Video AI if you have it installed.
+- Keep a file under a size limit, for example 10 MB for Discord.
 
-### ⚡ Fast and hassle-free
-- **Graphics card encoding** (NVIDIA, Intel, AMD) when available, otherwise a fast CPU preset.
-- **Queue:** collect several clips and Snipload downloads them one after another.
-- **History** with thumbnails, search and “Again”.
-- **Works out of the box:** Snipload downloads [yt-dlp](https://github.com/yt-dlp/yt-dlp) and
-  [ffmpeg](https://ffmpeg.org) by itself, without admin rights or winget.
-- **Keeps itself working:** yt-dlp is kept up to date automatically. If YouTube refuses a download
-  (HTTP 403), Snipload updates yt-dlp and tries another way on its own.
-- **Updates itself:** new versions download in the background, and Snipload restarts and reopens right
-  where you were.
+### Send it to your editing program
+- **Premiere Pro**: the clip appears in your open project by itself, in a bin, at the playhead or as a new
+  sequence. Snipload installs a small extension for this; Premiere needs one restart the first time.
+- **After Effects**: the clip is imported and opened as a composition.
+- **CapCut, DaVinci Resolve, VEGAS** and any program you add: Snipload opens it and puts the clip in the
+  clipboard, ready to paste.
 
-### 🌍 10 languages
-English · Deutsch · 日本語 · Español · Français · Português · 한국어 · 简体中文 · Türkçe · Русский
-
-English is the default. Change the language under **Settings → Language**.
-
-<p align="center"><img src="docs/settings.png" width="760" alt="Settings with language selection"></p>
+### And the rest
+- **10 languages**: English · Deutsch · 日本語 · Español · Français · Português · 한국어 · 简体中文 · Türkçe · Русский
+- **Works out of the box**: Snipload downloads [yt-dlp](https://github.com/yt-dlp/yt-dlp) and
+  [ffmpeg](https://ffmpeg.org) by itself and keeps yt-dlp up to date.
+- **Updates itself** in the background.
+- **Library** of everything you exported, with search and playback.
 
 ## Getting started
 
 1. **[Download `Snipload.exe`](../../releases/latest)** (under *Assets*) and run it. There's nothing to install.
 2. If Windows shows *“Windows protected your PC”*, click **More info → Run anyway**. This happens with
    new apps that aren't code-signed.
-3. On first use, Snipload offers to download yt-dlp and ffmpeg. Click **Install** and wait about a minute.
-4. Copy a YouTube link, drag the start and end, then click **Download**. 🎬
+3. On first use, Snipload offers to download yt-dlp and ffmpeg. Click **Download now** and wait about a minute.
+4. Paste a link or search, pick your part, press **Export**.
 
-**Shortcuts:** `Ctrl+V` paste link · `Ctrl+Enter` download · `Ctrl+1…4` switch pages
+**Shortcuts:** `Space` play · `I` / `O` start and end · `Q` / `W` jump to start and end · `A` add clip to
+the list · `Ctrl+Enter` export · `Ctrl+K` search · `?` shows all of them
 
 ## FAQ
 
 <details>
-<summary><b>The download is very slow (“0.1× speed”)</b></summary>
+<summary><b>The video doesn't play in the editor</b></summary>
 
-Frame-accurate cutting has to re-encode the video. On older or slower PCs this can be slow at 1440p or 4K.
-Snipload uses your graphics card when it can. You can also turn off **Settings → Frame-accurate cuts**,
-which makes it many times faster, though the clip may then start a second or two early.
+YouTube videos play through YouTube's own player. A few videos don't allow that (some music videos, for
+example). Snipload then plays the video directly, and if that isn't possible either, it shows still frames.
+Cutting and exporting work in every case.
+</details>
+
+<details>
+<summary><b>The export is slow</b></summary>
+
+Frame-accurate cutting, vertical formats, captions and effects all mean the video is rendered again.
+Snipload uses your graphics card when it can. For plain clips you can turn off **Cut exactly to the frame**
+on the Export tab, which is many times faster, though the clip may then start a moment early. AI upscaling
+is slow by nature.
 </details>
 
 <details>
 <summary><b>“YouTube refused the download (HTTP 403)”</b></summary>
 
-YouTube changes things often, and older yt-dlp versions stop working. Snipload already updates yt-dlp and
-retries automatically. If it still happens, wait a few minutes and try again.
+YouTube changes things often, and older yt-dlp versions stop working. Snipload updates yt-dlp and retries
+automatically. If it still happens, wait a few minutes and try again.
 </details>
 
 <details>
 <summary><b>Where are my files?</b></summary>
 
-By default in your **Downloads** folder. You can change it under Settings → Save. File names follow a
-template with `{title}`, `{channel}`, `{start}`, `{end}`, `{date}` and `{id}`.
+By default in your **Downloads** folder. You can change it in the settings or on the Export tab. File names
+follow a template with `{title}`, `{channel}`, `{start}`, `{end}`, `{date}` and `{id}`.
 </details>
 
 <details>
 <summary><b>Is it safe?</b></summary>
 
 The source code is right here. Every release is built automatically by GitHub Actions from this code (see
-*Actions*). Snipload only talks to YouTube, GitHub (for updates and tools) and the official
-ffmpeg build server.
+*Actions*). Snipload talks to YouTube and Twitch, to GitHub (updates and tools), to the official ffmpeg
+build server, to Hugging Face (the speech model, only if you use AI captions) and to the emote services
+7TV, BetterTTV and FrankerFaceZ (only if you load a Twitch chat).
 </details>
 
 > Please only download content you're allowed to use.
 
 ## For developers
 
-Snipload is written in Python with [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter),
-uses OpenCV for face detection, and is packaged with PyInstaller.
+Snipload is written in Python. The interface is a web page (plain HTML, CSS and JavaScript, no framework)
+shown in a native window through [pywebview](https://pywebview.flowrl.com) and Edge WebView2, and talks to
+the Python side over a local server. It is packaged with PyInstaller.
 
 | Path | Contents |
 |---|---|
-| `src/main.py` | Entry point (plus `--selftest` for CI) |
-| `src/snipload/app.py` | Main window, sidebar, events, updates |
-| `src/snipload/pages/` | Pages: New clip, Queue, History, Settings, Facecam editor |
-| `src/snipload/jobs.py` | Downloads, queue, cutting and Shorts conversion (yt-dlp + ffmpeg) |
-| `src/snipload/facecam.py` | Facecam detection, pixel-perfect measurement, 9:16 layout |
-| `src/snipload/tools.py` | Finding/downloading yt-dlp and ffmpeg, video info, encoders |
-| `src/snipload/updater.py` | Self-update via GitHub Releases |
+| `src/main.py` | Entry point (plus `--selftest` and `--nettest` for CI) |
+| `src/snipload/webapp.py` · `server.py` · `backend.py` | Window, local server, everything the interface can call |
+| `src/snipload/web/` | The interface: `js/editor.js`, `js/inspector.js`, `js/timeline.js`, `js/preview.js`, … |
+| `src/snipload/jobs.py` · `finish.py` | Downloads, queue, cutting, rendering (yt-dlp + ffmpeg) |
+| `src/snipload/search.py` | YouTube and Twitch search, channels, VOD details |
+| `src/snipload/captions.py` | Subtitles from YouTube or whisper.cpp, fonts, animated ASS captions |
+| `src/snipload/chat.py` | Chat download (Twitch, YouTube) and rendering |
+| `src/snipload/facecam.py` | Facecam detection and the 9:16 layout |
+| `src/snipload/upscale.py` | Real-ESRGAN and Topaz Video AI |
+| `src/snipload/editors.py` | Premiere Pro, After Effects and other editing programs |
+| `src/snipload/tools.py` · `updater.py` | yt-dlp and ffmpeg, self-update |
 | `src/snipload/i18n.py` · `locales/` | Translations (English source texts in `locales/_keys.py`) |
-| `src/snipload/widgets.py` · `theme.py` · `icons.py` | UI building blocks, colors, fonts, icons |
-| `.github/workflows/build.yml` | Builds the exe on Windows, runs self-tests, publishes the release |
+| `.github/workflows/build.yml` | Builds the exe on Windows, tests it, publishes the release |
 
-The version number lives in `src/snipload/__init__.py`, and the build number is appended automatically.
-To add a language, copy `locales/de.py`, translate the texts and register the code in `i18n.py` and
-`locales/__init__.py`.
+To try the interface in a browser while developing: `python -m snipload.webapp --dev` (from `src/`) prints
+a local address. The version number lives in `src/snipload/__init__.py`; the build number is appended
+automatically.
+
+Third-party licenses are listed in the app under **Settings → Licenses**.
