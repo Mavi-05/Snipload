@@ -191,7 +191,14 @@ class TwitchPlayer extends Base {
 
 // ------------------------------------------------------------------ Direkte Videodatei
 class VideoPlayer extends Base {
-  constructor(host, meta, src) { super(host, meta); this.kind = 'video'; this.src = src; this.sound = !!src.audio; }
+  constructor(host, meta, src) {
+    super(host, meta);
+    this.kind = 'video';
+    this.src = src;
+    // YouTube liefert Bild und Ton getrennt: der Ton laeuft dann als zweite Datei synchron mit
+    this.audioUrl = !src.audio && src.kind === 'file' && meta.preview_audio ? meta.preview_audio : null;
+    this.sound = !!src.audio || !!this.audioUrl;
+  }
   async init(start) {
     const v = h('video', { playsInline: true, preload: 'auto' });
     v.disablePictureInPicture = true;
@@ -202,6 +209,23 @@ class VideoPlayer extends Base {
     if (start) v.currentTime = start;
     v.addEventListener('play', () => this.onState(true));
     v.addEventListener('pause', () => this.onState(false));
+    if (this.audioUrl) {
+      const a = new Audio();
+      a.preload = 'auto';
+      a.src = this.audioUrl;
+      a.addEventListener('error', () => { this.audio = null; this.sound = false; });
+      this.audio = a;
+      this.timer = setInterval(() => this._syncAudio(), 200);
+    }
+  }
+  _syncAudio() {
+    const a = this.audio, v = this.video;
+    if (!a || !v) return;
+    if (v.paused || v.ended || v.seeking || v.readyState < 3) { if (!a.paused) a.pause(); return; }
+    if (a.playbackRate !== v.playbackRate) a.playbackRate = v.playbackRate;
+    if (a.muted !== v.muted) a.muted = v.muted;
+    if (Math.abs(a.currentTime - v.currentTime) > 0.25) a.currentTime = v.currentTime;
+    if (a.paused) { const p = a.play(); if (p && p.catch) p.catch(() => {}); }
   }
   get time() { return this.video.currentTime || 0; }
   get playing() { return !this.video.paused && !this.video.ended; }
@@ -211,6 +235,8 @@ class VideoPlayer extends Base {
   setRate(r) { this.rate = r; this.video.playbackRate = r; }
   setMuted(m) { this.video.muted = !!m; }
   destroy() {
+    clearInterval(this.timer);
+    try { if (this.audio) { this.audio.pause(); this.audio.removeAttribute('src'); this.audio.load(); } } catch (_) { /* egal */ }
     try { if (this.hls) this.hls.destroy(); } catch (_) { /* egal */ }
     try { this.video.pause(); this.video.removeAttribute('src'); this.video.load(); } catch (_) { /* egal */ }
   }

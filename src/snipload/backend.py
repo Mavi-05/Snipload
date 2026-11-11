@@ -260,7 +260,7 @@ class Backend:
                          for p in info.get("heatmap") or []],
              "captions": captions.sources(info), "storyboard": self._storyboard(info, dur),
              "embed": None, "chat": False, "start_hint": None, "is_clip": False,
-             "preview_src": self._preview_src(info)}
+             "preview_src": self._preview_src(info), "preview_audio": self._preview_audio(info)}
         if platform == "youtube":
             m["embed"] = {"type": "youtube", "id": info.get("id")}
             m["chat"] = bool((info.get("subtitles") or {}).get("live_chat"))
@@ -325,6 +325,20 @@ class Backend:
         f = max(cands, key=lambda x: x[0])[1]
         return {"url": f["url"], "kind": "hls" if (f.get("protocol") or "").startswith("m3u8") else "file",
                 "w": f.get("width"), "h": f.get("height"), "audio": tools.has_audio(f)}
+
+    @staticmethod
+    def _preview_audio(info):
+        """Tonspur als eigene Datei (YouTube liefert Bild und Ton getrennt) - fuer die direkte Wiedergabe mit Ton."""
+        best = None
+        for f in info.get("formats") or []:
+            if f.get("vcodec") != "none" or f.get("acodec") in (None, "none") or not f.get("url"):
+                continue
+            if (f.get("protocol") or "") not in ("https", "http"):
+                continue
+            score = (1 if str(f.get("acodec", "")).startswith("mp4a") else 0, -abs((f.get("abr") or 128) - 128))
+            if best is None or score > best[0]:
+                best = (score, f["url"])
+        return best[1] if best else None
 
     def _storyboard(self, info, dur):
         sbs = [f for f in info.get("formats") or [] if str(f.get("format_id", "")).startswith("sb")

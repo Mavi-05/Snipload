@@ -88,7 +88,7 @@ function setup(meta) {
   E.chat = { messages: [], badges: {}, range: null, burn: false, alpha: '', style: Object.assign({}, d.chat_default, S.cfg.chat_style || {}), corner: 'bl', w: 0.42, h: 0.36, hype: null };
   E.fx = { speed: 1, brightness: 0, contrast: 0, saturation: 0, sharpen: 0, volume_db: 0, normalize: false, mute: false, fade_in: 0, fade_out: 0, fps: 0, up_target: 0,
     up_engine: S.cfg.upscale_engine || 'lanczos' };
-  E.out = { kind: S.cfg.kind === 'audio' ? 'audio' : 'video', quality: S.cfg.quality || 'best', audio_fmt: S.cfg.audio_fmt || 'mp3', exact: S.cfg.exact !== false,
+  E.out = { kind: 'video', quality: S.cfg.quality || 'best', audio_fmt: S.cfg.audio_fmt || 'mp3', exact: S.cfg.exact !== false,
     gif_fps: 15, gif_width: 480, size_mb: 0, hevc: false, name: '' };
   const start = clamp(meta.start_hint || 0, 0, Math.max(0, meta.duration - 1));
   E.a = start;
@@ -133,7 +133,8 @@ async function startPlayer(start, skip = []) {
   p.setMuted(E.muted);
   if (E.fx.speed !== 1) p.setRate(E.fx.speed);
   setTimeout(() => srcPoster.classList.add('gone'), p.kind === 'youtube' || p.kind === 'twitch' ? 1200 : 0);
-  if (!p.sound) toast(t('Preview without sound: this video can only be shown as still frames here. The export has sound.'), 'info');
+  if (p.kind === 'stills') toast(t('Preview without sound: this video can only be shown as still frames here. The export has sound.'), 'info');
+  else if (!p.sound) toast(t('The preview of this video has no sound. The export has sound.'), 'info');
   ensureFeed();
 }
 function ensureFeed() {
@@ -717,7 +718,7 @@ async function exportNow() {
   const ed = S.editors.find(x => x.id === S.cfg.open_in);
   const opts = { kind: video ? 'video' : 'audio', quality: o.quality, audio_fmt: o.audio_fmt, aspect: video ? f.aspect : 'original', exact: o.exact, spec, layout, cam_px: camPx,
     also_full: video && (f.aspect === 'facecam' || f.aspect === 'facecam_raw') && f.also_full, open_in: ed ? ed.id : null, open_mode: ed && ed.kind === 'premiere' ? (S.cfg.premiere_mode || 'bin') : null };
-  for (const k of ['kind', 'quality', 'audio_fmt', 'exact']) setCfg(k, opts[k]);
+  for (const k of ['quality', 'audio_fmt', 'exact']) setCfg(k, opts[k]);
   setCfg('aspect', f.aspect);
   try {
     await api('export', { vid: meta.id, clips, opts });

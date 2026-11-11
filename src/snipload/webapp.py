@@ -208,14 +208,27 @@ def main(dev=False):
     if IS_WIN and not webview2_installed():
         _need_webview2()
         return
+    # Eingebettete Player (YouTube, Twitch) sollen auf Knopfdruck abspielen duerfen - auch wenn der Klick nicht im Player selbst war
+    os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required")
     import webview
     webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
     webview.settings["ALLOW_DOWNLOADS"] = False
     webview.settings["SHOW_DEFAULT_MENUS"] = bool(os.environ.get("SNIPLOAD_DEBUG"))
     geo = be.cfg.get("window") or {}
+    w, h = int(geo.get("w") or 1440), int(geo.get("h") or 900)
+    min_w, min_h = 1000, 640
+    if IS_WIN:      # nie groesser als der Bildschirm starten
+        try:
+            import ctypes
+            sw, sh = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
+            if sw > 400 and sh > 300:
+                w, h = min(w, sw - 40), min(h, sh - 90)
+                min_w, min_h = min(min_w, sw - 40), min(min_h, sh - 90)
+        except Exception:
+            pass
     win = webview.create_window(
-        "Snipload", srv.url, width=int(geo.get("w") or 1440), height=int(geo.get("h") or 900),
-        min_size=(1120, 700), background_color="#07080d", text_select=False, zoomable=False,
+        "Snipload", srv.url, width=max(w, min_w), height=max(h, min_h),
+        min_size=(min_w, min_h), background_color="#07080d", text_select=False, zoomable=False,
         maximized=bool(geo.get("max")))
     be.window = win
     win.events.closing += be.on_closing

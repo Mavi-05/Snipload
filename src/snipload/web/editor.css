@@ -188,3 +188,25 @@
 .keys { margin-bottom: 14px; }
 .keys-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 32px; border-top: 1px solid var(--line); }
 .exact-img { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: var(--r); }
+
+/* Kleinere Fenster: Inspector schmaler, weniger Rand */
+@media (max-width: 1280px) {
+  .ed { grid-template-columns: minmax(0, 1fr) 336px; }
+  .ed-stage { padding: 0 14px; gap: 10px; }
+  .ed-bar { padding: 0 8px 0 14px; }
+  .ed-transport { padding: 0 14px; gap: 2px; }
+  .ed-tl { padding: 0 14px 12px; }
+  .ed-time { min-width: 0; margin-right: 8px; }
+  .ins-body { padding: 14px 14px 18px; }
+  .ins-foot { padding: 12px 14px 14px; }
+}
+@media (max-width: 1100px) {
+  .ed { grid-template-columns: minmax(0, 1fr) 308px; }
+  .mon-out { width: min(40cqw, calc(100cqh * var(--ar, .5625))); }
+  .tc-field { width: 74px; }
+  .ed-len { min-width: 0; padding: 0 6px; }
+}
+@media (max-height: 760px) {
+  .ed-bar { height: 44px; }
+  .ed-transport { height: 52px; }
+}
