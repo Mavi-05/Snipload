@@ -1,0 +1,5 @@
+cv2 4.14.0, numpy 2.5.4, Detektoren: 3
+Oberflaeche ok, Version 4.0.19, app.js 12039 Bytes (text/javascript)
+Untertitel ok, 11 Schriften
+Sprachen: de 521, ja 521, es 521, fr 521, pt 521, ko 521, zh 521, tr 521, ru 521
+SELFTEST OK
