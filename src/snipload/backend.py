@@ -259,7 +259,7 @@ class Backend:
              "heatmap": [{"s": p.get("start_time"), "e": p.get("end_time"), "v": p.get("value")}
                          for p in info.get("heatmap") or []],
              "captions": captions.sources(info), "storyboard": self._storyboard(info, dur),
-             "embed": None, "chat": False, "start_hint": None, "is_clip": False,
+             "embed": None, "play_src": None, "chat": False, "start_hint": None, "is_clip": False,
              "preview_src": self._preview_src(info), "preview_audio": self._preview_audio(info)}
         if platform == "youtube":
             m["embed"] = {"type": "youtube", "id": info.get("id")}
@@ -268,6 +268,7 @@ class Backend:
             vod = chat.twitch_vod_id(m["url"])
             if vod:
                 m["embed"] = {"type": "twitch", "video": vod}
+                m["play_src"] = self._hls_src(info)      # direkt abspielen: volle Kontrolle, kein Twitch-Overlay
                 m["chat"] = True
                 try:
                     extra = search.twitch_vod_meta(vod)
@@ -325,6 +326,16 @@ class Backend:
         f = max(cands, key=lambda x: x[0])[1]
         return {"url": f["url"], "kind": "hls" if (f.get("protocol") or "").startswith("m3u8") else "file",
                 "w": f.get("width"), "h": f.get("height"), "audio": tools.has_audio(f)}
+
+    @staticmethod
+    def _hls_src(info, target=720):
+        """Stream mit Bild und Ton (Twitch-VODs) zum direkten Abspielen im Editor, moeglichst 720p."""
+        cands = [f for f in info.get("formats") or []
+                 if tools.is_video_format(f) and (f.get("protocol") or "").startswith("m3u8") and tools.has_audio(f) and f.get("height")]
+        if not cands:
+            return None
+        f = min(cands, key=lambda x: (x["height"] > target, abs(x["height"] - target), -(x.get("fps") or 0)))
+        return {"url": f["url"], "kind": "hls", "w": f.get("width"), "h": f.get("height"), "audio": True}
 
     @staticmethod
     def _preview_audio(info):

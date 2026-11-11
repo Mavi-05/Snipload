@@ -282,6 +282,8 @@ class StillsPlayer extends Base {
 export async function createPlayer(host, meta, start, skip = []) {
   const e = meta.embed || {};
   const tries = [];
+  // Twitch-VODs laufen am besten direkt (eigene Steuerung, bildgenaues Spulen); die Einbettung ist der Ersatz
+  if (meta.play_src && !skip.includes('video')) tries.push(() => new VideoPlayer(host, meta, meta.play_src));
   if (e.type === 'youtube' && e.id && !skip.includes('youtube')) tries.push(() => new YouTubePlayer(host, meta));
   if (e.type === 'twitch' && e.video && !skip.includes('twitch')) tries.push(() => new TwitchPlayer(host, meta));
   if (e.type === 'direct' && e.src) tries.push(() => new VideoPlayer(host, meta, { url: e.src, kind: 'file', audio: true }));
